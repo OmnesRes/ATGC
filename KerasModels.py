@@ -312,6 +312,38 @@ class RaggedModels:
 
 
     class losses:
+        class CrossEntropyfromlogits:
+            def __init__(self, name='CE_logits'):
+                super(RaggedModels.losses.CrossEntropyfromlogits, self).__init__(name=name)
+
+            def call(y_true, y_pred, loss_clip=0.):
+                return tf.maximum(tf.keras.losses.CategoricalCrossentropy(reduction='none', from_logits=True)(y_true[0, :, :-1], y_pred[0, :, :-1]) - loss_clip, 0.)
+
+            def __call__(self, y_true, y_pred, sample_weight=None):
+                # get sample loss
+                losses = self.call(y_true, y_pred)
+                # return correct true weighted average if provided sample_weight
+                if sample_weight is not None:
+                    return tf.reduce_sum(tf.reduce_sum(losses * sample_weight, axis=0) / tf.reduce_sum(sample_weight))
+                else:
+                    return tf.reduce_mean(losses, axis=0)
+
+        class CrossEntropy:
+            def __init__(self, name='CE_logits'):
+                super(RaggedModels.losses.CrossEntropy, self).__init__(name=name)
+
+            def call(y_true, y_pred, loss_clip=0.):
+                return tf.maximum(tf.keras.losses.CategoricalCrossentropy(reduction='none', from_logits=False)(y_true[0, :, :-1], y_pred[0, :, :-1]) - loss_clip, 0.)
+
+            def __call__(self, y_true, y_pred, sample_weight=None):
+                # get sample loss
+                losses = self.call(y_true, y_pred)
+                # return correct true weighted average if provided sample_weight
+                if sample_weight is not None:
+                    return tf.reduce_sum(tf.reduce_sum(losses * sample_weight, axis=0) / tf.reduce_sum(sample_weight))
+                else:
+                    return tf.reduce_mean(losses, axis=0)
+
         class QuantileLoss(tf.keras.losses.Loss):
             def __init__(self, name='quantile_loss', alpha=0.1, weight=0.5):
                 super(RaggedModels.losses.QuantileLoss, self).__init__(name=name)
