@@ -217,6 +217,35 @@ class SampleModels:
             input = tf.keras.layers.Input(self.shape, dtype=tf.float32)
             self.model = tf.keras.Model(inputs=[input], outputs=[input])
 
+    class HLA:
+        def __init__(self, filters=8, latent_dim=4, fusion_dimension=64, default_activation=tf.keras.activations.relu):
+            self.default_activation = default_activation
+            self.fusion_dimension = fusion_dimension
+            self.filters = filters
+            self.latent_dim = latent_dim
+            self.model = None
+            self.build()
+
+        def build(self, *args, **kwargs):
+            hla_A = tf.keras.layers.Input(shape=(2, self.latent_dim), dtype=tf.float32)
+            hla_B = tf.keras.layers.Input(shape=(2, self.latent_dim), dtype=tf.float32)
+            hla_C = tf.keras.layers.Input(shape=(2, self.latent_dim), dtype=tf.float32)
+
+            # layers of convolution for sequence feature extraction based on conv_params
+            features = [[]] * 3
+            convolutions = [[]] * 3
+            for index, feature in enumerate([hla_A, hla_B, hla_C]):
+                convolutions[index] = tf.keras.layers.Conv2D(filters=self.filters, kernel_size=[1, 1], activation=ANLU())
+                # apply conv to each allele
+                features[index] = convolutions[index](feature[:, tf.newaxis, :, :])
+                # pool over both alleles
+                features[index] = tf.reduce_max(features[index], axis=[1, 2])
+
+            fused = tf.concat(features, axis=-1)
+            fused = tf.keras.layers.Dense(units=self.fusion_dimension, activation=self.default_activation, kernel_regularizer=tf.keras.regularizers.l2())(fused)
+
+            self.model = tf.keras.Model(inputs=[hla_A, hla_B, hla_C], outputs=[fused])
+
 
 
 class RaggedModels:
@@ -273,12 +302,8 @@ class RaggedModels:
             for i in range(len(output_layers)):
                 pred.append(tf.keras.layers.Dense(units=output_layers[i], activation=None if i == (len(output_layers) - 1) else tf.keras.activations.relu)(hidden if i == 0 else pred[-1]))
 
-
             output_tensor = pred[-1]
-            # if sample_encoders == []:
-            #     output_tensor = tf.concat([pred[-1], tf.ones_like(pred[-1])], axis=1)
-            # else:
-            #     output_tensor = tf.concat([pred[-1], sample_encodings[0]], axis=1)
+
 
         else:
             output_tensor = tf.keras.layers.Dense(units=output_dim, activation=None)(hidden)
