@@ -4,15 +4,14 @@ import tensorflow as tf
 from KerasModels import InstanceModels, RaggedModels, SampleModels
 from sklearn.model_selection import StratifiedShuffleSplit
 import pickle
-from lifelines import CoxPHFitter
-from lifelines.utils import concordance_index
-# physical_devices = tf.config.experimental.list_physical_devices('GPU')
-# tf.config.experimental.set_memory_growth(physical_devices[-1], True)
-# tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
+# from lifelines import CoxPHFitter
+# from lifelines.utils import concordance_index
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
-
-D, samples, maf, sample_df = pickle.load(open('/home/jordan/Desktop/ATGC/figures/tmb/tcga/MSK_468/data/data.pkl', 'rb'))
-panels = pickle.load(open('/home/jordan/Desktop/ATGC/files/tcga_panel_table.pkl', 'rb'))
+D, samples, maf, sample_df = pickle.load(open('/home/janaya2/Desktop/ATGC_paper/figures/tmb/all_cancers/MSK_468/data/all_cancers_MSK_468.pkl', 'rb'))
+panels = pickle.load(open('/home/janaya2/Desktop/ATGC_paper/files/tcga_panel_table.pkl', 'rb'))
 
 
 mask = ~pd.isna(sample_df['OS.time']) & ~pd.isna(sample_df['age_at_initial_pathologic_diagnosis'])
@@ -55,7 +54,6 @@ tfds_train = tfds_train.shuffle(len(y_label), reshuffle_each_iteration=True).bat
 tile_encoder = InstanceModels.PassThrough(shape=(1,))
 sample_encoder_group = SampleModels.PassThrough(shape=samples['histology'].shape[1:])
 sample_encoder_age = SampleModels.PassThrough(shape=age.shape[1:])
-
 
 
 mil = RaggedModels.MIL(instance_encoders=[], sample_encoders=[sample_encoder_group.model, sample_encoder_age.model], output_dim=1, output_type='survival')

@@ -10,10 +10,10 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
-if path.stem == 'ATGC':
+if path.stem == 'ATGC2':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
     import sys
     sys.path.append(str(cwd))
 
@@ -30,67 +30,35 @@ D['chr_emb'] = chr_emb_mat[D['chr']]
 frame_emb_mat = np.concatenate([np.zeros(3)[np.newaxis, :], np.diag(np.ones(3))], axis=0)
 D['cds_emb'] = frame_emb_mat[D['cds']]
 
+indexes = np.argsort(D['sample_idx'])
 
-##choose your instance concepts, here a sequence concept of length 6, embedding dim 4, strand 2, and 4 kernels per 5p, 3p, ref, alt.
+five_p = tf.RaggedTensor.from_value_rowids(D['seq_5p'][indexes].astype(np.int32), D['sample_idx'][indexes], nrows=len(samples['classes']))
+three_p = tf.RaggedTensor.from_value_rowids(D['seq_3p'][indexes].astype(np.int32), D['sample_idx'][indexes], nrows=len(samples['classes']))
+ref = tf.RaggedTensor.from_value_rowids(D['seq_ref'][indexes].astype(np.int32), D['sample_idx'][indexes], nrows=len(samples['classes']))
+alt = tf.RaggedTensor.from_value_rowids(D['seq_alt'][indexes].astype(np.int32), D['sample_idx'][indexes], nrows=len(samples['classes']))
+strand = tf.RaggedTensor.from_value_rowids(D['strand_emb'][indexes].astype(np.float32), D['sample_idx'][indexes], nrows=len(samples['classes']))
 
-features = [InputFeatures.VariantSequence(6, 4, 2, [4, 4, 4, 4],
-                                          {'5p': D['seq_5p'], '3p': D['seq_3p'], 'ref': D['seq_ref'], 'alt': D['seq_alt'], 'strand': D['strand_emb'], 'cds': D['cds_emb']},
-                                          use_frame=False, fusion_dimension=64)
-]
-
-##choose your sample concepts
-sample_features = ()
-
-
-# set y label and weights
-y_label = np.stack([[0, 1] if i==1 else [1, 0] for i in samples['classes']])
+y_label = np.stack([[0, 1] if i == 1 else [1, 0] for i in samples['classes']])
 y_strat = np.argmax(y_label, axis=-1)
 
-class_counts = dict(zip(*np.unique(y_strat, return_counts=True)))
-y_weights = np.array([1 / class_counts[_] for _ in y_strat])
-y_weights /= np.sum(y_weights)
+idx_train, idx_test = next(StratifiedShuffleSplit(n_splits=1, test_size=100).split(y_strat, y_strat))
 
-##build the model
-atgc = ATGC(features, sample_features=sample_features, aggregation_dimension=64, fusion_dimension=32)
-atgc.build_instance_encoder_model(return_latent=False)
-atgc.build_sample_encoder_model()
-atgc.build_mil_model(output_dim=y_label.shape[1], output_extra=1, output_type='anlulogits', aggregation='recursion', mil_hidden=(16, 8))
-metrics = [Losses.Weighted.CrossEntropyfromlogits.cross_entropy_weighted, Losses.Weighted.Accuracy.accuracy]
-atgc.mil_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001, clipvalue=10000), loss=Losses.Weighted.CrossEntropyfromlogits.cross_entropy_weighted, metrics=metrics)
-callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_cross_entropy_weighted', min_delta=0.001, patience=5, mode='min', restore_best_weights=True)]
-initial_weights = atgc.mil_model.get_weights()
+train_data = (tf.gather(five_p, idx_train), tf.gather(three_p, idx_train), tf.gather(ref, idx_train), tf.gather(alt, idx_train), tf.gather(strand, idx_train))
+valid_data = (tf.gather(five_p, idx_test), tf.gather(three_p, idx_test), tf.gather(ref, idx_test), tf.gather(alt, idx_test), tf.gather(strand, idx_test))
 
-##perform 8 fold stratification
-weights = []
-test_idxs = []
-for idx_train, idx_test in StratifiedKFold(n_splits=8, random_state=0, shuffle=True).split(y_strat, y_strat):
-    idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=50, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
+tfds_train = tf.data.Dataset.from_tensor_slices((train_data, y_label[idx_train]))
+tfds_train = tfds_train.shuffle(len(y_label), reshuffle_each_iteration=True).batch(750, drop_remainder=True)
 
-    batch_gen_train = BatchGenerator(x_instance_sample_idx=D['sample_idx'], x_instance_features=features, x_sample=sample_features,
-                                     y_label=y_label, y_stratification=y_strat, y_weights=y_weights, sampling_approach='minibatch', batch_size=32, idx_sample=idx_train)
+tfds_valid = tf.data.Dataset.from_tensor_slices((valid_data, y_label[idx_test]))
+tfds_valid = tfds_valid.batch(len(idx_test), drop_remainder=False)
 
-    data_valid = next(BatchGenerator(x_instance_sample_idx=D['sample_idx'], x_instance_features=features, x_sample=sample_features,
-                                     y_label=y_label, y_stratification=y_strat, y_weights=y_weights, sampling_approach=None, idx_sample=idx_valid).data_generator())
+tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
 
+mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], sample_encoders=[], output_dim=2)
+losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
+mil.compile(loss=losses)
 
-    atgc.mil_model.set_weights(initial_weights)
-    atgc.mil_model.fit(batch_gen_train.data_generator(),
-                       steps_per_epoch=batch_gen_train.n_splits,
-                       epochs=10000,
-                       validation_data=data_valid,
-                       shuffle=False,
-                       callbacks=callbacks)
-
-    weights.append(atgc.mil_model.get_weights())
-    test_idxs.append(idx_test)
-
-
-##check evaluations on the test set for each Kfold
-for weight, idx in zip(weights, test_idxs):
-    atgc.mil_model.set_weights(weight)
-    data_test = next(BatchGenerator(x_instance_sample_idx=D['sample_idx'], x_instance_features=features, x_sample=sample_features,
-                                     y_label=y_label, y_stratification=y_strat, y_weights=y_weights, sampling_approach=None, idx_sample=idx).data_generator())
-    print(atgc.mil_model.evaluate(data_test[0], data_test[1]))
+mil.fit(tfds_train, epochs=300)
 
 
 

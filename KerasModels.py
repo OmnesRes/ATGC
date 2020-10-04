@@ -304,7 +304,6 @@ class RaggedModels:
 
             output_tensor = pred[-1]
 
-
         else:
             output_tensor = tf.keras.layers.Dense(units=output_dim, activation=None)(hidden)
 
@@ -329,7 +328,7 @@ class RaggedModels:
                     return tf.reduce_mean(losses, axis=0)
 
         class CrossEntropy:
-            def __init__(self, name='CE_logits'):
+            def __init__(self, name='CE'):
                 super(RaggedModels.losses.CrossEntropy, self).__init__(name=name)
 
             def call(y_true, y_pred, loss_clip=0.):
