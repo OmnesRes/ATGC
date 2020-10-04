@@ -1,5 +1,5 @@
 import tensorflow as tf
-from model.CustomLayers import ANLU, AISRU, Embed, StrandWeight
+from model_old.CustomLayers import ANLU, AISRU, Embed, StrandWeight
 import re
 
 class InputFeatures:
