@@ -47,18 +47,25 @@ train_data = (tf.gather(five_p, idx_train), tf.gather(three_p, idx_train), tf.ga
 valid_data = (tf.gather(five_p, idx_test), tf.gather(three_p, idx_test), tf.gather(ref, idx_test), tf.gather(alt, idx_test), tf.gather(strand, idx_test))
 
 tfds_train = tf.data.Dataset.from_tensor_slices((train_data, y_label[idx_train]))
-tfds_train = tfds_train.shuffle(len(y_label), reshuffle_each_iteration=True).batch(750, drop_remainder=True)
+tfds_train = tfds_train.shuffle(len(y_label), reshuffle_each_iteration=True).batch(len(idx_train), drop_remainder=True)
 
 tfds_valid = tf.data.Dataset.from_tensor_slices((valid_data, y_label[idx_test]))
 tfds_valid = tfds_valid.batch(len(idx_test), drop_remainder=False)
 
 tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
 
-mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], sample_encoders=[], output_dim=2)
+mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], sample_encoders=[], output_dim=2, output_type='other')
 losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
-mil.compile(loss=losses)
+mil.model.compile(loss=losses, metrics='accuracy')
 
-mil.fit(tfds_train, epochs=300)
+mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=1000)
 
 
+attention = mil.attention_model.predict(tfds_valid).to_list()
 
+attention = [k for i in attention for j in i for k in j]
+
+
+import pylab as plt
+plt.hist(attention, bins=100)
+plt.show()

@@ -6,7 +6,7 @@ path = pathlib.Path.cwd()
 if path.stem == 'ATGC2':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
 
 #helper function for generating a string of nucleotides of any length
 def gen_ran_nuc(len_nuc):
@@ -72,7 +72,7 @@ positive_choices = [generate_variant() for i in range(n_pos)]
 
 
 
-def generate_sample(mean_variants=[50], mean_positive=.5, control=True, positive_choices=positive_choices):
+def generate_sample(mean_variants=[50], mean_positive=.05, control=True, positive_choices=positive_choices):
     total_count = int(np.random.normal(np.random.choice(mean_variants, 1), 10))
     if total_count < 1:
         total_count *= -1
