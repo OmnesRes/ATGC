@@ -1,12 +1,12 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from KerasModels import InstanceModels, RaggedModels, SampleModels
+from model_new.KerasModels import InstanceModels, RaggedModels, SampleModels
 from sklearn.model_selection import StratifiedShuffleSplit
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[-2], True)
-tf.config.experimental.set_visible_devices(physical_devices[-2], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
@@ -54,18 +54,22 @@ tfds_valid = tfds_valid.batch(len(idx_test), drop_remainder=False)
 
 tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
 
-mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], sample_encoders=[], output_dim=2, output_type='other')
+mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], sample_encoders=[], output_dim=2, attention_heads=3, output_type='other')
+
 losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
 mil.model.compile(loss=losses, metrics='accuracy')
 
 mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=1000)
 
+attention = mil.attention_model.predict(tfds_valid)
 
-attention = mil.attention_model.predict(tfds_valid).to_list()
-#
-attention = [k for i in attention for j in i for k in j]
-#
+attention_attention = [k for i in attention[1].to_list() for j in i for k in j]
+# attention = [k for i in attention for j in i for k in j]
+
+
+# attention_class_1 = [j[0] for i in attention for j in i]
+# attention_class_2 = [j[1] for i in attention for j in i]
 #
 import pylab as plt
-plt.hist(attention, bins=100)
+plt.hist(attention_attention, bins=100)
 plt.show()
