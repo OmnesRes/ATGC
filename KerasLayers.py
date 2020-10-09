@@ -4,7 +4,7 @@ import tensorflow as tf
 class Activations:
 
     class ASU(tf.keras.layers.Layer):
-        def __init__(self, trainable=True, lower_asymptote=0., upper_asymptote=1., alpha_init=1.):
+        def __init__(self, trainable=True, lower_asymptote=0., upper_asymptote=1., alpha_init=1., bias_init=None):
             super(Activations.ASU, self).__init__()
             self.trainable = trainable
             self.lower_asymptote = lower_asymptote
@@ -12,6 +12,8 @@ class Activations:
             self.alpha_init = alpha_init
             self.lower_alpha = None
             self.upper_alpha = None
+            self.bias_init = bias_init
+            self.bias = None
 
         @staticmethod
         def activation_function(x, lower_asymptote, upper_asymptote, lower_alpha, upper_alpha):
@@ -27,16 +29,23 @@ class Activations:
             self.upper_alpha = self.add_weight(shape=[input_shape[-1], ],
                                                initializer=tf.keras.initializers.constant(self.alpha_init),
                                                dtype=tf.float32, trainable=self.trainable)
+            if self.bias_init is not None:
+                self.bias = self.add_weight(shape=[input_shape[-1], ], initializer=tf.keras.initializers.constant(self.alpha_init), dtype=tf.float32, trainable=self.trainable)
+
 
         def call(self, inputs, **kwargs):
-            return self.activation_function(inputs, lower_asymptote=self.lower_asymptote, upper_asymptote=self.upper_asymptote, lower_alpha=tf.exp(self.lower_alpha), upper_alpha=tf.exp(self.upper_alpha))
+            return self.activation_function(inputs + self.bias if self.bias is not None else inputs,
+                                            lower_asymptote=self.lower_asymptote, upper_asymptote=self.upper_asymptote,
+                                            lower_alpha=tf.exp(self.lower_alpha), upper_alpha=tf.exp(self.upper_alpha))
 
     class ARU(tf.keras.layers.Layer):
-        def __init__(self, trainable=True, alpha_init=0.):
+        def __init__(self, trainable=True, alpha_init=0., bias_init=None):
             super(Activations.ARU, self).__init__()
             self.trainable = trainable
             self.alpha_init = alpha_init
             self.alpha = None
+            self.bias_init = bias_init
+            self.bias = None
 
         @staticmethod
         def activation_function(x, alpha):
@@ -44,9 +53,11 @@ class Activations:
 
         def build(self, input_shape):
             self.alpha = self.add_weight(shape=[input_shape[-1], ], initializer=tf.keras.initializers.constant(self.alpha_init), dtype=tf.float32, trainable=self.trainable)
+            if self.bias_init is not None:
+                self.bias = self.add_weight(shape=[input_shape[-1], ], initializer=tf.keras.initializers.constant(self.alpha_init), dtype=tf.float32, trainable=self.trainable)
 
         def call(self, inputs, **kwargs):
-            return self.activation_function(inputs, alpha=tf.exp(self.alpha))
+            return self.activation_function(inputs + self.bias if self.bias is not None else inputs, alpha=tf.exp(self.alpha))
 
 
 class Convolutions:
@@ -84,10 +95,5 @@ class Ragged:
 
         def call(self, inputs, **kwargs):
             attention_weights = tf.ragged.map_flat_values(self.attention_layer, inputs)
-            attention_sum = tf.reduce_sum(attention_weights, axis=1)
-
-            weighted_sum = tf.reduce_sum(
-                tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]), ([tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
-                tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)])), axis=1)
-            return weighted_sum, attention_sum, attention_weights
-
+            attention_sums = tf.reduce_sum(attention_weights, axis=1)
+            return attention_sums, attention_weights

@@ -89,18 +89,17 @@ class Ragged:
             return tf.ragged.map_flat_values(self.op, inputs)
 
     class Attention(tf.keras.layers.Layer):
-        def __init__(self, attention_heads=1):
+        def __init__(self, regularization=.2):
             super(Ragged.Attention, self).__init__()
             self._supports_ragged_inputs = True
-            self.attention_layer = tf.keras.layers.Dense(units=attention_heads, activation=Activations.ASU())
-            self.attention_attention_layer = tf.keras.layers.Dense(units=1, activation=Activations.ASU())
+            self.attention_layer_1 = tf.keras.layers.Dense(units=16, activation='relu')
+            self.attention_layer_2 = tf.keras.layers.Dense(units=1, activation=Activations.ASU(), activity_regularizer=tf.keras.regularizers.l1(regularization))
 
         def call(self, inputs, **kwargs):
-            attention_weights = tf.ragged.map_flat_values(self.attention_layer, inputs)
-            attention_attention_weights = tf.ragged.map_flat_values(self.attention_attention_layer, attention_weights)
-            weighted_attention_sums = tf.reduce_sum(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
-                                                                    [tf.ragged.map_flat_values(tf.expand_dims, attention_attention_weights, axis=2),
-                                                                     tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=1)]), axis=1)
+            attention_weights = tf.ragged.map_flat_values(self.attention_layer_1, inputs)
+            attention_weights = tf.ragged.map_flat_values(self.attention_layer_2, attention_weights)
+            weighted_sums = tf.reduce_sum(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
+                                                                    [tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
+                                                                     tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)]), axis=1)
 
-
-            return weighted_attention_sums, attention_weights, attention_attention_weights
+            return weighted_sums, attention_weights

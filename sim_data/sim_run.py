@@ -5,8 +5,8 @@ from KerasModels import InstanceModels, RaggedModels, SampleModels
 from sklearn.model_selection import StratifiedShuffleSplit
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[-2], True)
-tf.config.experimental.set_visible_devices(physical_devices[-2], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[3], True)
+tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
@@ -41,7 +41,7 @@ strand = tf.RaggedTensor.from_value_rowids(D['strand_emb'][indexes].astype(np.fl
 y_label = np.stack([[0, 1] if i == 1 else [1, 0] for i in samples['classes']])
 y_strat = np.argmax(y_label, axis=-1)
 
-idx_train, idx_test = next(StratifiedShuffleSplit(n_splits=1, test_size=100).split(y_strat, y_strat))
+idx_train, idx_test = next(StratifiedShuffleSplit(random_state=0, n_splits=1, test_size=100).split(y_strat, y_strat))
 
 train_data = (tf.gather(five_p, idx_train), tf.gather(three_p, idx_train), tf.gather(ref, idx_train), tf.gather(alt, idx_train), tf.gather(strand, idx_train))
 valid_data = (tf.gather(five_p, idx_test), tf.gather(three_p, idx_test), tf.gather(ref, idx_test), tf.gather(alt, idx_test), tf.gather(strand, idx_test))
@@ -55,17 +55,17 @@ tfds_valid = tfds_valid.batch(len(idx_test), drop_remainder=False)
 tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
 
 mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], sample_encoders=[], output_dim=2, output_type='other')
-losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
-mil.model.compile(loss=losses, metrics='accuracy')
+losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=False)]
+mil.model.compile(loss=losses, metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=False)])
+callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=400, mode='min', restore_best_weights=True)]
+mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=10000, callbacks=callbacks)
 
-mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=1000)
-
-
+#
 attention = mil.attention_model.predict(tfds_valid).to_list()
-#
+# #
 attention = [k for i in attention for j in i for k in j]
-#
-#
+# #
+# #
 import pylab as plt
 plt.hist(attention, bins=100)
 plt.show()

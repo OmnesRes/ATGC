@@ -12,7 +12,6 @@ else:
 def gen_ran_nuc(len_nuc):
     return ''.join(np.random.choice(['A', 'T', 'C', 'G'], len_nuc))
 
-
 #generate a variant (5p, 3p, ref, alt, chromosome, position, strand) with a certain chance of being an indel
 def generate_variant(length=6, indel_percent=.1):
     five_p = gen_ran_nuc(length)
@@ -64,15 +63,11 @@ def check_variant(variant, positive_variants):
                 break
     return x
 
-
-
 ##how many different variants you want to label a positive sample
 n_pos = 1
 positive_choices = [generate_variant() for i in range(n_pos)]
 
-
-
-def generate_sample(mean_variants=[50], mean_positive=.05, control=True, positive_choices=positive_choices):
+def generate_sample(mean_variants=[50, 100, 300], mean_positive=.5, control=True, positive_choices=positive_choices):
     total_count = int(np.random.normal(np.random.choice(mean_variants, 1), 10))
     if total_count < 1:
         total_count *= -1
@@ -82,7 +77,8 @@ def generate_sample(mean_variants=[50], mean_positive=.05, control=True, positiv
         control_count = total_count
         positive_count = 0
     else:
-        positive_count = int(np.ceil(mean_positive * total_count))
+        # positive_count = int(np.ceil(mean_positive * total_count))
+        positive_count = 2
         control_count = total_count - positive_count
     control_variants = [generate_variant() for i in range(control_count)]
     while True:
@@ -96,9 +92,13 @@ def generate_sample(mean_variants=[50], mean_positive=.05, control=True, positiv
             control_variants = [generate_variant() for i in range(control_count)]
         else:
             break
-    positive_choice = np.random.choice(range(n_pos), 1)
-    positive_variants = [positive_choices[int(positive_choice)] for i in range(positive_count)]
-    return control_variants + positive_variants
+    positive_instances = []
+    positive_variants = []
+    for i in range(positive_count):
+        positive_choice = np.random.choice(range(n_pos), 1)
+        positive_variants.append(positive_choices[int(positive_choice)])
+        positive_instances.append(int(positive_choice) + 1)
+    return [control_variants + positive_variants, [0] * len(control_variants) + positive_instances]
 
 
 ##dictionary for instance level data
@@ -110,7 +110,8 @@ instances = {'sample_idx': [],
                   'gen_chr': [],
                   'gen_pos': [],
                   'strand': [],
-                  'cds': []}
+                  'cds': [],
+                  'class': []}
 
 ##
 samples = {'classes': []}
@@ -118,19 +119,20 @@ samples = {'classes': []}
 for idx in range(500):
     if np.random.sample() < .5:
         variants = generate_sample()
-        samples['classes']= samples['classes'] + [0]
+        samples['classes'] = samples['classes'] + [0]
     else:
-        variants = generate_sample(control=False, mean_positive=.5)
-        samples['classes']= samples['classes'] + [1]
-    instances['sample_idx'] = instances['sample_idx'] + [idx] * len(variants)
-    instances['seq_5p'] = instances['seq_5p'] + [i[0] for i in variants]
-    instances['seq_3p'] = instances['seq_3p'] + [i[1] for i in variants]
-    instances['seq_ref'] = instances['seq_ref'] + [i[2] for i in variants]
-    instances['seq_alt'] = instances['seq_alt'] + [i[3] for i in variants]
-    instances['gen_chr'] = instances['gen_chr'] + [i[4] for i in variants]
-    instances['gen_pos'] = instances['gen_pos'] + [i[5] for i in variants]
-    instances['strand'] = instances['strand'] + [i[6] for i in variants]
-    instances['cds'] = instances['cds'] + [0 for i in variants]
+        variants = generate_sample(control=False, mean_positive=.02)
+        samples['classes'] = samples['classes'] + [1]
+    instances['sample_idx'] = instances['sample_idx'] + [idx] * len(variants[0])
+    instances['seq_5p'] = instances['seq_5p'] + [i[0] for i in variants[0]]
+    instances['seq_3p'] = instances['seq_3p'] + [i[1] for i in variants[0]]
+    instances['seq_ref'] = instances['seq_ref'] + [i[2] for i in variants[0]]
+    instances['seq_alt'] = instances['seq_alt'] + [i[3] for i in variants[0]]
+    instances['gen_chr'] = instances['gen_chr'] + [i[4] for i in variants[0]]
+    instances['gen_pos'] = instances['gen_pos'] + [i[5] for i in variants[0]]
+    instances['strand'] = instances['strand'] + [i[6] for i in variants[0]]
+    instances['cds'] = instances['cds'] + [0 for i in variants[0]]
+    instances['class'] = instances['class'] + variants[1]
 
 instances['sample_idx'] = np.array(instances['sample_idx'])
 instances['seq_5p'] = np.array(instances['seq_5p'])
@@ -163,7 +165,7 @@ instances['seq_alt'] = np.stack([instances['seq_alt'], t], axis=2)
 del i, t
 
 with open(cwd / 'sim_data' / 'sim_data.pkl', 'wb') as f:
-    pickle.dump([instances, samples], f)
+    pickle.dump([instances, samples, ], f)
 
 
 

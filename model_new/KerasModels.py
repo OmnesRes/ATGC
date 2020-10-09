@@ -251,9 +251,9 @@ class SampleModels:
 class RaggedModels:
 
     class MIL:
-        def __init__(self, instance_encoders=[], sample_encoders=[], output_dim=1, output_type='quantiles', attention_heads=1):
+        def __init__(self, instance_encoders=[], sample_encoders=[], output_dim=1, output_type='quantiles', regularization=.2):
 
-            self.instance_encoders, self.sample_encoders, self.output_dim, self.attention_heads, self.output_type = instance_encoders, sample_encoders, output_dim, attention_heads, output_type
+            self.instance_encoders, self.sample_encoders, self.output_dim, self.regularization, self.output_type = instance_encoders, sample_encoders, output_dim, regularization, output_type
             self.model, self.attention_model = None, None
             self.build()
 
@@ -268,12 +268,14 @@ class RaggedModels:
                 # based on the design of the input and graph instances can be fused prior to bag aggregation
                 ragged_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=2))(ragged_encodings)
 
-                ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=32, activation=tf.keras.activations.relu))(ragged_fused)
-                ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu))(ragged_hidden)
+                # ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=32, activation=tf.keras.activations.relu))(ragged_fused)
+                # ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu))(ragged_hidden)
 
-                quantitative_features, ragged_attention_weights, ragged_attention_attention_weights = Ragged.Attention(attention_heads=8)(ragged_hidden)
+                quantitative_features, ragged_attention_weights = Ragged.Attention(regularization=self.regularization)(ragged_fused)
 
-            hidden = Activations.ARU(bias_init=0.)(quantitative_features[:, 0, :])
+            hidden = tf.keras.layers.Dense(units=32, activation=tf.keras.activations.relu)(quantitative_features[:, 0, :])
+            hidden = tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu)(hidden)
+            # hidden = Activations.ARU(bias_init=0.)(quantitative_features[:, 0, :])
             # hidden = hidden / tf.expand_dims(tf.reduce_sum(hidden, axis=-1), axis=-1)
             #
             #
@@ -313,7 +315,7 @@ class RaggedModels:
                 output_tensor = tf.keras.layers.Dense(units=self.output_dim, activation=None)(hidden)
 
             self.model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[output_tensor])
-            self.attention_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[ragged_attention_weights, ragged_attention_attention_weights])
+            self.attention_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[ragged_attention_weights])
 
 
 

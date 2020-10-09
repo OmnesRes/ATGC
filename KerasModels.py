@@ -267,26 +267,24 @@ class RaggedModels:
                 # based on the design of the input and graph instances can be fused prior to bag aggregation
                 ragged_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=2))(ragged_encodings)
 
-                bag_aggregation, attention_sums, ragged_attention_weights = Ragged.Attention(attention_heads=self.attention_heads)(ragged_fused)
+                ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=32, activation=tf.keras.activations.relu))(ragged_fused)
+                ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu))(ragged_hidden)
 
-
+                ragged_attention_weights = Ragged.MapFlatValues(tf.keras.layers.Dense(units=self.output_dim, activation=None, use_bias=True))(ragged_hidden)
             ##sample level model encodings
             sample_inputs = [[tf.keras.layers.Input(shape=input_tensor.shape[1:], dtype=input_tensor.dtype) for input_tensor in encoder.inputs] for encoder in self.sample_encoders]
             if self.sample_encoders != []:
                 sample_encodings = [encoder(sample_input) for sample_input, encoder in zip(sample_inputs, self.sample_encoders)]
                 sample_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=-1))(sample_encodings)
-                if self.instance_encoders != []:
-                    fused = tf.concat([bag_aggregation[:, 0, :], sample_fused], axis=-1)
-                else:
-                    fused = sample_fused
+                # if self.instance_encoders != []:
+                #     fused = tf.concat([bag_aggregation[:, 0, :], sample_fused], axis=-1)
+                # else:
+                #     fused = sample_fused
             else:
-                fused = bag_aggregation[:, 0, :]
-
+                # fused = bag_aggregation
+                pass
             # bag_latent = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=-1))([tf.keras.layers.Flatten()(bag_aggregation), attention_sums])
             # hidden = tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu)(bag_latent)
-
-            hidden = tf.keras.layers.Dense(units=32, activation=tf.keras.activations.relu)(fused)
-            hidden = tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu)(hidden)
 
             if self.output_type == 'quantiles':
                 output_layers = (4, 1)
@@ -309,7 +307,10 @@ class RaggedModels:
                 output_tensor = pred[-1]
 
             else:
-                output_tensor = tf.keras.layers.Dense(units=self.output_dim, activation=None)(hidden)
+                attention_sums = tf.keras.layers.Lambda(lambda x: tf.reduce_sum(x, axis=ragged_attention_weights.ragged_rank))(ragged_attention_weights)
+                probabilities = tf.keras.activations.softplus(attention_sums)
+                probabilities = probabilities / tf.expand_dims(tf.reduce_sum(probabilities, axis=-1), axis=-1)
+                output_tensor = probabilities
 
             self.model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[output_tensor])
             self.attention_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[ragged_attention_weights])
