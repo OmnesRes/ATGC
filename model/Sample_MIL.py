@@ -1,133 +1,9 @@
 import tensorflow as tf
-from model_new.KerasLayers import Activations, Ragged, Convolutions
-from CustomLayers import ANLU, AISRU, Embed, StrandWeight
+from model.KerasLayers import Activations, Ragged, Convolutions
+from model.CustomLayers import ANLU, AISRU, Embed, StrandWeight
 
 
 class InstanceModels:
-
-    @staticmethod
-    def simple_cnn_encoder(input_shape, output_activation=tf.keras.activations.relu, output_n=1):
-        inputs = [tf.keras.layers.Input(shape=input_shape, dtype=tf.float32)]
-        x = tf.keras.layers.Conv2D(filters=16, kernel_size=3, padding='same', activation=tf.keras.activations.relu)(inputs[0])
-        x = tf.keras.layers.AvgPool2D(pool_size=2, strides=2)(x)
-        x = tf.keras.layers.Conv2D(filters=32, kernel_size=3, padding='same', activation=tf.keras.activations.relu)(x)
-        x = tf.keras.layers.AvgPool2D(pool_size=2, strides=2)(x)
-        outputs = [tf.keras.layers.Conv2D(filters=64, kernel_size=3, padding='same', activation=output_activation)(x) for i in range(output_n)]
-
-        return tf.keras.Model(inputs=inputs, outputs=outputs)
-
-    @staticmethod
-    def simple_cnn_decoder(input_shape, output_shape, output_activation=tf.keras.activations.sigmoid):
-        inputs = [tf.keras.layers.Input(shape=input_shape, dtype=tf.float32)]
-        x = tf.keras.layers.Conv2D(filters=32, kernel_size=3, padding='same', activation=tf.keras.activations.relu)(inputs[0])
-        x = tf.keras.layers.UpSampling2D(2)(x)
-        x = tf.keras.layers.Conv2D(filters=16, kernel_size=3, padding='same', activation=tf.keras.activations.relu)(x)
-        x = tf.keras.layers.UpSampling2D(2)(x)
-        outputs = [tf.keras.layers.Conv2D(filters=output_shape[-1], kernel_size=3, padding='same', activation=output_activation)(x)]
-
-        return tf.keras.Model(inputs=inputs, outputs=outputs)
-
-    @staticmethod
-    def dccnn_tile_encoder(input_shape, output_activation=tf.keras.activations.relu, output_n=1):
-        inputs = [tf.keras.layers.Input(shape=input_shape, dtype=tf.float32)]
-
-        denseconv1 = Convolutions.DenselyConnectedConv2D(k=3, filters=8, kernel_size=3)(inputs[0])
-        pool1 = tf.keras.layers.AvgPool2D(pool_size=2, strides=2)(denseconv1)
-
-        denseconv2 = Convolutions.DenselyConnectedConv2D(k=3, filters=16, kernel_size=3)(pool1)
-        pool2 = tf.keras.layers.AvgPool2D(pool_size=2, strides=2)(denseconv2)
-
-        denseconv3 = Convolutions.DenselyConnectedConv2D(k=3, filters=32, kernel_size=3)(pool2)
-        pool3 = tf.keras.layers.AvgPool2D(pool_size=2, strides=2)(denseconv3)
-
-        outputs = list()
-        for i in range(output_n):
-            denseconv4 = Convolutions.DenselyConnectedConv2D(k=3, filters=64, kernel_size=3)(pool3)
-            outputs.append(tf.keras.layers.AvgPool2D(pool_size=2, strides=2)(denseconv4))
-
-        return tf.keras.Model(inputs=inputs, outputs=outputs)
-
-    @staticmethod
-    def dccnn_tile_decoder(input_shape, output_shape, output_clip=None):
-        latent_input = tf.keras.layers.Input(shape=input_shape, dtype=tf.float32)
-
-        up1 = tf.keras.layers.UpSampling2D(2)(latent_input)
-        denseconv1 = Convolutions.DenselyConnectedConv2D(k=3, filters=32, kernel_size=3)(up1)
-
-        up2 = tf.keras.layers.UpSampling2D(2)(denseconv1)
-        denseconv2 = Convolutions.DenselyConnectedConv2D(k=3, filters=16, kernel_size=3)(up2)
-
-        up3 = tf.keras.layers.UpSampling2D(2)(denseconv2)
-        denseconv3 = Convolutions.DenselyConnectedConv2D(k=3, filters=8, kernel_size=3)(up3)
-
-        up4 = tf.keras.layers.UpSampling2D(2)(denseconv3)
-        recon = Convolutions.DenselyConnectedConv2D(k=3, filters=output_shape[-1], kernel_size=3)(up4)
-
-        if output_clip is not None:
-            recon = tf.clip_by_value(recon, clip_value_min=output_clip[0], clip_value_max=output_clip[1])
-
-        return tf.keras.Model(inputs=[latent_input], outputs=[recon])
-
-    @staticmethod
-    def mlp(input_shape, output_shape, output_activation=None):
-        input_tensor = tf.keras.layers.Input(shape=input_shape, dtype=tf.float32)
-        hidden = tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu)(input_tensor)
-        hidden = tf.keras.layers.Dense(units=8, activation=tf.keras.activations.relu)(hidden)
-        output_tensor = tf.keras.layers.Dense(units=output_shape, activation=output_activation)(hidden)
-
-        return tf.keras.Model(inputs=[input_tensor], outputs=[output_tensor])
-
-    @staticmethod
-    def classifier(encoder, mlp):
-        input_tensor = tf.keras.layers.Input(shape=encoder.input.shape[1:], dtype=encoder.input.dtype)
-        latent = encoder(input_tensor)
-        probabilities = mlp(latent)
-
-        return tf.keras.Model(inputs=[input_tensor], outputs=[probabilities])
-
-    class VariationalAutoencoder:
-        # TODO asserts on shapes
-
-        @staticmethod
-        def reparameterize(z_mean, z_logvar):
-            return tf.random.normal(shape=tf.shape(z_mean), mean=0, stddev=1) * tf.math.exp(z_logvar * 0.5) + z_mean
-
-        @staticmethod
-        def recon_loss(x, y):
-            return tf.reduce_mean(tf.keras.layers.Flatten()(tf.math.squared_difference(x, y)), axis=-1)
-
-        @staticmethod
-        def kl_loss(z_mean, z_logvar):
-            return 0.5 * tf.reduce_sum(tf.keras.layers.Flatten()(tf.math.square(z_mean) + tf.math.exp(z_logvar) - z_logvar - 1), axis=-1)
-
-        def __init__(self, encoder, decoder):
-            self.encoder, self.decoder = encoder, decoder
-            self.build_model()
-
-        def build_model(self):
-            input_tensor = tf.keras.layers.Input(shape=self.encoder.input.shape[1:], dtype=self.encoder.input.dtype)
-            z_mean, z_logvar = self.encoder(input_tensor)
-            vae_latent = InstanceModels.VariationalAutoencoder.reparameterize(z_mean, z_logvar)
-            recon_tensor = self.decoder(vae_latent)
-
-            recon_loss = InstanceModels.VariationalAutoencoder.recon_loss(input_tensor, recon_tensor)
-            kl_loss = InstanceModels.VariationalAutoencoder.kl_loss(z_mean, z_logvar)
-
-            self.model = tf.keras.Model(inputs=[input_tensor], outputs=[recon_loss, kl_loss])
-            self.recon_fn = tf.keras.backend.function(inputs=[input_tensor], outputs=[recon_tensor])
-
-    @staticmethod
-    def autoencoder(encoder, decoder):
-        # TODO asserts on shapes
-
-        input_tensor = tf.keras.layers.Input(shape=encoder.input.shape[1:], dtype=encoder.input.dtype)
-        latent = encoder(input_tensor)
-        recon_tensor = decoder(latent)
-
-        recon_loss = tf.reduce_mean(tf.math.squared_difference(input_tensor, recon_tensor), axis=tuple(range(1, recon_tensor.shape.ndims)))
-
-        return tf.keras.Model(inputs=[input_tensor], outputs=[recon_loss]), tf.keras.backend.function(inputs=[input_tensor], outputs=[recon_tensor])
-
 
     class VariantPositionBin:
         def __init__(self, chromosome_embedding_dimension, position_embedding_dimension, default_activation=tf.keras.activations.relu):
@@ -251,9 +127,9 @@ class SampleModels:
 class RaggedModels:
 
     class MIL:
-        def __init__(self, instance_encoders=[], sample_encoders=[], output_dim=1, output_type='quantiles', regularization=.2):
+        def __init__(self, instance_encoders=[], sample_encoders=[], instance_layers=[], sample_layers=[], output_dim=1, output_type='quantiles', regularization=.2):
 
-            self.instance_encoders, self.sample_encoders, self.output_dim, self.regularization, self.output_type = instance_encoders, sample_encoders, output_dim, regularization, output_type
+            self.instance_encoders, self.sample_encoders, self.instance_layers, self.sample_layers, self.output_dim, self.regularization, self.output_type = instance_encoders, sample_encoders, instance_layers, sample_layers, output_dim, regularization, output_type
             self.model, self.attention_model = None, None
             self.build()
 
@@ -268,28 +144,31 @@ class RaggedModels:
                 # based on the design of the input and graph instances can be fused prior to bag aggregation
                 ragged_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=2))(ragged_encodings)
 
-                # ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=32, activation=tf.keras.activations.relu))(ragged_fused)
-                # ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu))(ragged_hidden)
+                ragged_hidden = [ragged_fused]
+                for i in self.instance_layers:
+                    ragged_hidden.append(Ragged.MapFlatValues(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu))(ragged_hidden[-1]))
 
-                quantitative_features, ragged_attention_weights = Ragged.Attention(regularization=self.regularization)(ragged_fused)
+                quantitative_features, ragged_attention_weights = Ragged.Attention(regularization=self.regularization)(ragged_hidden[-1])
 
             hidden = tf.keras.layers.Dense(units=32, activation=tf.keras.activations.relu)(quantitative_features[:, 0, :])
             hidden = tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu)(hidden)
-            # hidden = Activations.ARU(bias_init=0.)(quantitative_features[:, 0, :])
-            # hidden = hidden / tf.expand_dims(tf.reduce_sum(hidden, axis=-1), axis=-1)
-            #
-            #
-            # ##sample level model encodings
+
+            ##sample level model encodings
             sample_inputs = [[tf.keras.layers.Input(shape=input_tensor.shape[1:], dtype=input_tensor.dtype) for input_tensor in encoder.inputs] for encoder in self.sample_encoders]
-            # if self.sample_encoders != []:
-            #     sample_encodings = [encoder(sample_input) for sample_input, encoder in zip(sample_inputs, self.sample_encoders)]
-            #     sample_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=-1))(sample_encodings)
-            #     if self.instance_encoders != []:
-            #         fused = tf.concat([weighted_averages[:, 0, :], sample_fused], axis=-1)
-            #     else:
-            #         fused = sample_fused
-            # else:
-            #     fused = weighted_averages[:, 0, :]
+            if self.sample_encoders != []:
+                sample_encodings = [encoder(sample_input) for sample_input, encoder in zip(sample_inputs, self.sample_encoders)]
+                sample_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=-1))(sample_encodings)
+                if self.instance_encoders != []:
+                    fused = tf.concat([hidden, sample_fused], axis=-1)
+                else:
+                    fused = sample_fused
+            else:
+                fused = hidden
+
+
+
+
+
 
             if self.output_type == 'quantiles':
                 output_layers = (4, 1)
@@ -320,28 +199,13 @@ class RaggedModels:
 
 
     class losses:
-        class CrossEntropyfromlogits(tf.keras.losses.Loss):
-            def __init__(self, name='CE_logits'):
-                super(RaggedModels.losses.CrossEntropyfromlogits, self).__init__(name=name)
-
-            def call(self, y_true, y_pred, loss_clip=0.):
-                return tf.maximum(tf.keras.losses.CategoricalCrossentropy(reduction='none', from_logits=True)(y_true, y_pred) - loss_clip, 0.)
-
-            def __call__(self, y_true, y_pred, sample_weight=None):
-                # get sample loss
-                losses = self.call(y_true, y_pred)
-                # return correct true weighted average if provided sample_weight
-                if sample_weight is not None:
-                    return tf.reduce_sum(tf.reduce_sum(losses * sample_weight, axis=0) / tf.reduce_sum(sample_weight))
-                else:
-                    return tf.reduce_mean(losses, axis=0)
-
         class CrossEntropy(tf.keras.losses.Loss):
-            def __init__(self, name='CE'):
+            def __init__(self, name='CE', from_logits=True):
                 super(RaggedModels.losses.CrossEntropy, self).__init__(name=name)
+                self.from_logits = from_logits
 
             def call(self, y_true, y_pred, loss_clip=0.):
-                return tf.maximum(tf.keras.losses.CategoricalCrossentropy(reduction='none', from_logits=False)(y_true, y_pred) - loss_clip, 0.)
+                return tf.maximum(tf.keras.losses.CategoricalCrossentropy(reduction='none', from_logits=self.from_logits)(y_true, y_pred) - loss_clip, 0.)
 
             def __call__(self, y_true, y_pred, sample_weight=None):
                 # get sample loss
@@ -370,10 +234,10 @@ class RaggedModels:
                 if sample_weight is not None:
                     return tf.reduce_sum(tf.reduce_sum(losses * sample_weight, axis=0) / tf.reduce_sum(sample_weight) * self.quantiles_weight)
                 else:
-                    return tf.reduce_mean(losses, axis=0)
+                    return tf.reduce_sum(tf.reduce_mean(losses, axis=0) * self.quantiles_weight)
 
         class CoxPH(tf.keras.losses.Loss):
-            def __init__(self, name='coxph', cancers=33):
+            def __init__(self, name='coxph', cancers=1):
                 super(RaggedModels.losses.CoxPH, self).__init__(name=name)
                 self.cancers = cancers
 
@@ -395,21 +259,3 @@ class RaggedModels:
                     return tf.reduce_sum(losses * sample_weight) / tf.reduce_sum(sample_weight)
                 else:
                     return tf.reduce_mean(losses)
-
-    @staticmethod
-    def GuidedMIL(encoder, decoder, output_dim, attention_heads=1):
-        ragged_input = tf.keras.layers.Input(shape=encoder.input.shape, dtype=encoder.input.dtype, ragged=True)
-        ragged_encoding = Ragged.MapFlatValues(encoder)(ragged_input)
-
-        ragged_fused = Ragged.MapFlatValues(lambda x: tf.keras.layers.Flatten()(x[0]))(ragged_encoding)
-        bag_aggregation, attention_sums, ragged_attention_weights = Ragged.Attention(attention_heads=attention_heads)(ragged_fused)
-        hidden = tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu)(attention_sums)
-        logits = tf.keras.layers.Dense(units=output_dim, activation=None)(hidden)
-
-        ragged_vae_latent = Ragged.MapFlatValues(lambda x: InstanceModels.VariationalAutoencoder.reparameterize(x[0], x[1]))(ragged_encoding)
-        ragged_recon = Ragged.MapFlatValues(decoder)(ragged_vae_latent)
-
-        ragged_recon_loss = tf.keras.layers.Lambda(lambda x: tf.ragged.map_flat_values(InstanceModels.VariationalAutoencoder.recon_loss, x[0], x[1]))([ragged_input, ragged_recon])
-        ragged_kl_loss = tf.keras.layers.Lambda(lambda x: tf.ragged.map_flat_values(lambda x: InstanceModels.VariationalAutoencoder.kl_loss(x[0], x[1]), x))(ragged_encoding)
-
-        return tf.keras.Model(inputs=[ragged_input], outputs=[logits, ragged_recon_loss, ragged_kl_loss]), tf.keras.backend.function(inputs=[ragged_input], outputs=[ragged_recon])

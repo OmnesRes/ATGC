@@ -55,10 +55,11 @@ class Activations:
         def build(self, input_shape):
             self.alpha = self.add_weight(shape=[input_shape[-1], ], initializer=tf.keras.initializers.constant(self.alpha_init), dtype=tf.float32, trainable=self.trainable)
             if self.bias_init is not None:
-                self.bias = self.add_weight(shape=[input_shape[-1], ], initializer=tf.keras.initializers.constant(self.alpha_init), dtype=tf.float32, trainable=self.trainable)
+                self.bias = self.add_weight(shape=[input_shape[-1], ], initializer=tf.keras.initializers.constant(self.bias_init), dtype=tf.float32, trainable=True)
 
         def call(self, inputs, **kwargs):
             return self.activation_function(inputs + self.bias if self.bias is not None else inputs, alpha=tf.exp(self.alpha))
+
 
 class Convolutions:
 
@@ -74,7 +75,6 @@ class Convolutions:
                 previous_outputs.append(op(tf.concat([input] + previous_outputs, axis=-1)))
 
             return previous_outputs[-1]
-
 
 
 class Ragged:
@@ -103,3 +103,66 @@ class Ragged:
                                                                      tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)]), axis=1)
 
             return weighted_sums, attention_weights
+
+
+class Losses:
+    class CrossEntropy(tf.keras.losses.Loss):
+        def __init__(self, name='CE', from_logits=True):
+            super(Losses.CrossEntropy, self).__init__(name=name)
+            self.from_logits = from_logits
+
+        def call(self, y_true, y_pred, loss_clip=0.):
+            return tf.maximum(tf.keras.losses.CategoricalCrossentropy(reduction='none', from_logits=self.from_logits)(y_true, y_pred) - loss_clip, 0.)
+
+        def __call__(self, y_true, y_pred, sample_weight=None):
+            # get sample loss
+            losses = self.call(y_true, y_pred)
+            # return correct true weighted average if provided sample_weight
+            if sample_weight is not None:
+                return tf.reduce_sum(tf.reduce_sum(losses * sample_weight, axis=0) / tf.reduce_sum(sample_weight))
+            else:
+                return tf.reduce_mean(losses, axis=0)
+
+    class QuantileLoss(tf.keras.losses.Loss):
+        def __init__(self, name='quantile_loss', alpha=0.1, weight=0.5):
+            super(Losses.QuantileLoss, self).__init__(name=name)
+            self.quantiles = tf.constant(((alpha / 2), 0.5, 1 - (alpha / 2)))
+            self.quantiles_weight = tf.constant([weight / 2, 1 - weight, weight / 2])
+
+        def call(self, y_true, y_pred):
+            # per sample losses across the quantiles
+            residual = y_true - y_pred
+            return residual * (self.quantiles[tf.newaxis, :] - tf.cast(tf.less(residual, 0.), tf.float32))
+
+        def __call__(self, y_true, y_pred, sample_weight=None):
+            # get sample loss
+            losses = self.call(y_true, y_pred)
+            # return correct true weighted average if provided sample_weight
+            if sample_weight is not None:
+                return tf.reduce_sum(tf.reduce_sum(losses * sample_weight, axis=0) / tf.reduce_sum(sample_weight) * self.quantiles_weight)
+            else:
+                return tf.reduce_sum(tf.reduce_mean(losses, axis=0) * self.quantiles_weight)
+
+    class CoxPH(tf.keras.losses.Loss):
+        def __init__(self, name='coxph', cancers=1):
+            super(Losses.CoxPH, self).__init__(name=name)
+            self.cancers = cancers
+
+        def call(self, y_true, y_pred):
+            total_losses = []
+            for cancer in range(self.cancers):
+                mask = tf.equal(y_true[:, -1], cancer)
+                cancer_y_true = y_true[mask]
+                cancer_y_pred = y_pred[mask]
+                time_d = tf.cast(cancer_y_true[:, 0][tf.newaxis, :] <= cancer_y_true[:, 0][:, tf.newaxis], tf.float32)
+                loss = (tf.math.log(tf.tensordot(time_d, tf.math.exp(cancer_y_pred[:, 0][:, tf.newaxis]), [0, 0])[:, 0]) - cancer_y_pred[:, 0]) * cancer_y_true[:, 1]
+                total_losses.append(loss)
+            return tf.concat(total_losses, axis=-1)
+
+        def __call__(self, y_true, y_pred, sample_weight=None):
+            ##sample weights out of order, will have to mask them
+            losses = self.call(y_true, y_pred)
+            if sample_weight is not None:
+                return tf.reduce_sum(losses * sample_weight) / tf.reduce_sum(sample_weight)
+            else:
+                return tf.reduce_mean(losses)
