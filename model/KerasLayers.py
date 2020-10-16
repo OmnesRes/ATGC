@@ -89,8 +89,9 @@ class Ragged:
             return tf.ragged.map_flat_values(self.op, inputs)
 
     class Attention(tf.keras.layers.Layer):
-        def __init__(self, regularization=.2):
+        def __init__(self, pooling='sum', regularization=.2):
             super(Ragged.Attention, self).__init__()
+            self.pooling = pooling
             self._supports_ragged_inputs = True
             self.attention_layer_1 = tf.keras.layers.Dense(units=16, activation='relu')
             self.attention_layer_2 = tf.keras.layers.Dense(units=1, activation=Activations.ASU(), activity_regularizer=tf.keras.regularizers.l1(regularization))
@@ -98,11 +99,28 @@ class Ragged:
         def call(self, inputs, **kwargs):
             attention_weights = tf.ragged.map_flat_values(self.attention_layer_1, inputs)
             attention_weights = tf.ragged.map_flat_values(self.attention_layer_2, attention_weights)
-            weighted_sums = tf.reduce_sum(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
+
+            if self.pooling == 'max':
+                pooled = tf.reduce_max(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
+                                                                    [tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
+                                                                     tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)]), axis=1)
+            elif self.pooling == 'mean':
+                pooled = tf.reduce_sum(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
+                                                                 [tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
+                                                                  tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)]), axis=1)
+                pooled = pooled / tf.expand_dims(tf.reduce_sum(attention_weights, axis=1), axis=-1)
+
+            elif self.pooling == 'logsumexp':
+                pooled = tf.math.reduce_logsumexp(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
                                                                     [tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
                                                                      tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)]), axis=1)
 
-            return weighted_sums, attention_weights
+            else:
+                pooled = tf.reduce_sum(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
+                                                                    [tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
+                                                                     tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)]), axis=1)
+
+            return pooled, attention_weights
 
 
 class Losses:

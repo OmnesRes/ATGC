@@ -125,8 +125,8 @@ class SampleModels:
 class RaggedModels:
 
     class MIL:
-        def __init__(self, instance_encoders=[], sample_encoders=[], output_dim=1, attention_heads=1, output_type='quantiles'):
-            self.instance_encoders, self.sample_encoders, self.output_dim, self.attention_heads, self.output_type = instance_encoders, sample_encoders, output_dim, attention_heads, output_type
+        def __init__(self, instance_encoders=[], sample_encoders=[], output_dim=1, attention_heads=1, output_type='classification', pooling='sum', instance_activation=None):
+            self.instance_encoders, self.sample_encoders, self.output_dim, self.attention_heads, self.output_type, self.pooling, self.instance_activation = instance_encoders, sample_encoders, output_dim, attention_heads, output_type, pooling, instance_activation
             self.model, self.attention_model = None, None
             self.build()
 
@@ -144,40 +144,34 @@ class RaggedModels:
                 ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=32, activation=tf.keras.activations.relu))(ragged_fused)
                 ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu))(ragged_hidden)
 
-                ragged_attention_weights = Ragged.MapFlatValues(tf.keras.layers.Dense(units=self.output_dim, activation=None, use_bias=True))(ragged_hidden)
+                instance_predictions = Ragged.MapFlatValues(tf.keras.layers.Dense(units=self.output_dim, activation=self.instance_activation, use_bias=True))(ragged_hidden)
+
+                ##MIL pooling
+                if self.pooling == 'max':
+                    pooling = tf.keras.layers.Lambda(lambda x: tf.reduce_max(x, axis=instance_predictions.ragged_rank))(instance_predictions)
+                elif self.pooling == 'mean':
+                    pooling = tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, axis=instance_predictions.ragged_rank))(instance_predictions)
+                elif self.pooling == 'logsumexp':
+                    pooling = tf.keras.layers.Lambda(lambda x: tf.math.reduce_logsumexp(x, axis=instance_predictions.ragged_rank))(instance_predictions)
+                else:
+                    pooling = tf.keras.layers.Lambda(lambda x: tf.reduce_sum(x, axis=instance_predictions.ragged_rank))(instance_predictions)
+
 
             ##sample level model encodings (not applicable to instance MIL)
             sample_inputs = [[tf.keras.layers.Input(shape=input_tensor.shape[1:], dtype=input_tensor.dtype) for input_tensor in encoder.inputs] for encoder in self.sample_encoders]
 
             if self.output_type == 'quantiles':
-                output_layers = (4, 1)
-                point_estimate, lower_bound, upper_bound = list(), list(), list()
-                for i in range(len(output_layers)):
-                    point_estimate.append(tf.keras.layers.Dense(units=output_layers[i], activation=None if i == (len(output_layers) - 1) else tf.keras.activations.softplus)(hidden if i == 0 else point_estimate[-1]))
-
-                for l in [lower_bound, upper_bound]:
-                    for i in range(len(output_layers)):
-                        l.append(tf.keras.layers.Dense(units=output_layers[i], activation=tf.keras.activations.softplus)(hidden if i == 0 else l[-1]))
-
-                output_tensor = tf.keras.activations.softplus(tf.concat([point_estimate[-1] - lower_bound[-1], point_estimate[-1], point_estimate[-1] + upper_bound[-1]], axis=1))
-
-            elif self.output_type == 'survival':
-                output_layers = (4, 1)
-                pred = list()
-                for i in range(len(output_layers)):
-                    pred.append(tf.keras.layers.Dense(units=output_layers[i], activation=None if i == (len(output_layers) - 1) else tf.keras.activations.relu)(hidden if i == 0 else pred[-1]))
-
-                output_tensor = pred[-1]
-
+                ##quantiles with instance model needs to be done before aggregation
+                pass
+            elif self.output_type == 'regression':
+                ##assume positive label
+                output_tensor = tf.keras.activations.relu(pooling)
             else:
-                attention_sums = tf.keras.layers.Lambda(lambda x: tf.reduce_sum(x, axis=ragged_attention_weights.ragged_rank))(ragged_attention_weights)
-                # probabilities = tf.keras.activations.softplus(attention_sums)
-                # probabilities = probabilities / tf.expand_dims(tf.reduce_sum(probabilities, axis=-1), axis=-1)
-                output_tensor = attention_sums
+                probabilities = tf.keras.activations.softplus(pooling)
+                probabilities = probabilities / tf.expand_dims(tf.reduce_sum(probabilities, axis=-1), axis=-1)
+                output_tensor = probabilities
 
             self.model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[output_tensor])
-            self.attention_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[ragged_attention_weights])
-
 
     class losses:
         class CrossEntropy(tf.keras.losses.Loss):
