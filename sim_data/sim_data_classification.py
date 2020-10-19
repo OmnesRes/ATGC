@@ -1,6 +1,6 @@
 import numpy as np
+from sim_data.sim_data_tools import *
 import pickle
-from Bio.Seq import Seq
 import pathlib
 path = pathlib.Path.cwd()
 if path.stem == 'ATGC2':
@@ -8,96 +8,59 @@ if path.stem == 'ATGC2':
 else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
 
-#helper function for generating a string of nucleotides of any length
-def gen_ran_nuc(len_nuc):
-    return ''.join(np.random.choice(['A', 'T', 'C', 'G'], len_nuc))
+##this function is designed to have a positive sample defined by 1 or more types of variants.
+##option for having negative samples contain a positive variant if positive sample defined by multiple variants
 
-#generate a variant (5p, 3p, ref, alt, chromosome, position, strand) with a certain chance of being an indel
-def generate_variant(length=6, indel_percent=.1):
-    five_p = gen_ran_nuc(length)
-    three_p = gen_ran_nuc(length)
-    choices = ['A', 'T', 'C', 'G']
-    ref = ''.join(np.random.choice(choices, 1))
-    remaining_choices = choices.copy()
-    remaining_choices.pop(choices.index(ref))
-    alt = ''.join(np.random.choice(remaining_choices, 1))
-    ref += '-----'
-    alt += '-----'
-    if np.random.sample() < indel_percent:
-        size = int(np.random.choice(range(1, length + 1), 1))
-        ##even chance of being insertion vs. deletion
-        if np.random.sample() < .5:
-            ref = '------'
-            alt = ''.join(np.random.choice(choices, size)) + '-' * (length - size)
-        else:
-            ref = ''.join(np.random.choice(choices, size)) + '-' * (length - size)
-            alt = '------'
-    chromosome = np.random.choice(range(1, 25))
-    position = np.random.sample()
-    strand = np.random.choice([1, 2])
-    return np.array(list(five_p)), np.array(list(three_p)), np.array(list(ref)), np.array(list(alt)), chromosome, position, strand
-
-
-##to make sure the reverse of a simulated variant
-def check_variant(variant, positive_variants):
-    five_p = ''.join(variant[0])
-    three_p = ''.join(variant[1])
-    ref = ''.join(variant[2])
-    alt = ''.join(variant[3])
-
-    x = False
-    for pos in positive_variants:
-        if five_p == ''.join(pos[0]) and three_p == ''.join(pos[1]) and ref == ''.join(pos[2]) and alt == ''.join(pos[3]):
-            x = True
-            break
-    if x:
-        return x
-    else:
-        five_p_rev = str(Seq.reverse_complement(Seq(five_p)))
-        three_p_rev = str(Seq.reverse_complement(Seq(three_p)))
-        ref_rev = str(Seq.reverse_complement(Seq(ref.replace('-',''))))
-        alt_rev = str(Seq.reverse_complement(Seq(alt.replace('-',''))))
-        for pos in positive_variants:
-            if five_p_rev == str(Seq.reverse_complement(Seq(''.join(pos[1])))) and three_p_rev == str(Seq.reverse_complement(Seq(''.join(pos[0])))) and ref_rev == str(Seq.reverse_complement(Seq(''.join(pos[2]).replace('-','')))) and alt_rev == str(Seq.reverse_complement(Seq(''.join(pos[3]).replace('-', '')))):
-                x = True
-                break
-    return x
-
-##how many different variants you want to label a positive sample
-n_pos = 1
-positive_choices = [generate_variant() for i in range(n_pos)]
-
-def generate_sample(mean_variants=[50, 100, 300], mean_positive=.5, control=True, positive_choices=positive_choices):
+def generate_sample(mean_variants=[50, 100, 300], mean_positive=.5, control=True, positive_choices=[], negative_instances=False):
+    if negative_instances and len(positive_choices) == 1:
+        raise ValueError
     total_count = int(np.random.normal(np.random.choice(mean_variants, 1), 10))
     if total_count < 1:
         total_count *= -1
     if total_count == 0:
         total_count = 1
     if control:
-        control_count = total_count
-        positive_count = 0
-    else:
-        # positive_count = int(np.ceil(mean_positive * total_count))
-        positive_count = 2
-        control_count = total_count - positive_count
-    control_variants = [generate_variant() for i in range(control_count)]
-    while True:
-        y = False
-        for i in control_variants:
-            if check_variant(i, positive_choices):
-                print('checked')
-                y = True
-                break
-        if y:
-            control_variants = [generate_variant() for i in range(control_count)]
+        if negative_instances:
+            positive_count = int(np.ceil(mean_positive * total_count))
+            control_count = total_count - positive_count
         else:
-            break
-    positive_instances = []
+            control_count = total_count
+            positive_count = 0
+    else:
+        positive_count = int(np.ceil(mean_positive * total_count))
+        control_count = total_count + positive_count * len(positive_choices)
+
     positive_variants = []
-    for i in range(positive_count):
-        positive_choice = np.random.choice(range(n_pos), 1)
-        positive_variants.append(positive_choices[int(positive_choice)])
-        positive_instances.append(int(positive_choice) + 1)
+    positive_instances = []
+
+    control_variants = [generate_variant() for i in range(control_count)]
+    if control:
+        while True:
+            y = False
+            for i in control_variants:
+                if check_variant(i, positive_choices):
+                    print('checked')
+                    y = True
+                    break
+            if y:
+                control_variants = [generate_variant() for i in range(control_count)]
+            else:
+                break
+
+    if control:
+        if negative_instances:
+            positive_choice = np.random.choice(range(n_pos), 1)
+            for i in range(positive_count):
+                positive_variants.append(positive_choices[int(positive_choice)])
+        else:
+            pass
+
+    else:
+        for index, i in enumerate(positive_choices):
+            for ii in range(positive_count):
+                positive_variants.append(i)
+                positive_instances.append(index + 1)
+
     return [control_variants + positive_variants, [0] * len(control_variants) + positive_instances]
 
 
@@ -113,15 +76,19 @@ instances = {'sample_idx': [],
                   'cds': [],
                   'class': []}
 
-##
+##how many different variants you want to label a positive sample
+n_pos = 1
+positive_choices = [generate_variant() for i in range(n_pos)]
+
 samples = {'classes': []}
 
 for idx in range(500):
+    ##what percent of samples are control
     if np.random.sample() < .5:
         variants = generate_sample()
         samples['classes'] = samples['classes'] + [0]
     else:
-        variants = generate_sample(control=False, mean_positive=.02)
+        variants = generate_sample(control=False, mean_positive=.02, positive_choices=positive_choices)
         samples['classes'] = samples['classes'] + [1]
     instances['sample_idx'] = instances['sample_idx'] + [idx] * len(variants[0])
     instances['seq_5p'] = instances['seq_5p'] + [i[0] for i in variants[0]]
