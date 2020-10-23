@@ -165,6 +165,9 @@ class RaggedModels:
             else:
                 fused = pooled_hidden[-1]
 
+            fused = tf.keras.layers.Dense(units=32, activation='relu')(fused)
+            fused = tf.keras.layers.Dense(units=16, activation='relu')(fused)
+
             if self.output_type == 'quantiles':
                 output_layers = (4, 1)
                 point_estimate, lower_bound, upper_bound = list(), list(), list()
@@ -186,7 +189,7 @@ class RaggedModels:
                 output_tensor = pred[-1]
 
             else:
-                output_tensor = tf.keras.layers.Dense(units=self.output_dim, activation=None)(hidden)
+                output_tensor = tf.keras.layers.Dense(units=self.output_dim, activation=None)(fused)
 
             self.model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[output_tensor])
             self.attention_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[ragged_attention_weights])

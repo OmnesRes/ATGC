@@ -111,9 +111,9 @@ class Ragged:
                 pooled = pooled / tf.expand_dims(tf.reduce_sum(attention_weights, axis=1), axis=-1)
 
             elif self.pooling == 'logsumexp':
-                pooled = tf.math.reduce_logsumexp(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
+                pooled = tf.math.log(tf.reduce_sum(tf.math.exp(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
                                                                     [tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
-                                                                     tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)]), axis=1)
+                                                                     tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)])), axis=1))
 
             else:
                 pooled = tf.reduce_sum(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),

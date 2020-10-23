@@ -152,7 +152,7 @@ class RaggedModels:
                 elif self.pooling == 'mean':
                     pooling = tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, axis=instance_predictions.ragged_rank))(instance_predictions)
                 elif self.pooling == 'logsumexp':
-                    pooling = tf.keras.layers.Lambda(lambda x: tf.math.reduce_logsumexp(x, axis=instance_predictions.ragged_rank))(instance_predictions)
+                    pooling = tf.math.log(tf.keras.layers.Lambda(lambda x: tf.math.reduce_sum(tf.math.exp(x), axis=instance_predictions.ragged_rank))(instance_predictions))
                 else:
                     pooling = tf.keras.layers.Lambda(lambda x: tf.reduce_sum(x, axis=instance_predictions.ragged_rank))(instance_predictions)
 
@@ -172,6 +172,8 @@ class RaggedModels:
                 output_tensor = probabilities
 
             self.model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[output_tensor])
+            self.attention_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[instance_predictions])
+
 
     class losses:
         class CrossEntropy(tf.keras.losses.Loss):

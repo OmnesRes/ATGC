@@ -1,4 +1,3 @@
-import numpy as np
 from sim_data.sim_data_tools import *
 import pickle
 import pathlib
@@ -8,10 +7,8 @@ if path.stem == 'ATGC2':
 else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
 
-##this function is designed to have a positive sample defined by 1 or more types of variants.
-##option for having negative samples contain a positive variant if positive sample defined by multiple variants
-
-def generate_sample(mean_variants=[50, 100, 300], mean_positive=None, control=True, positive_choices=None, negative_instances=False):
+##random witness rate
+def generate_sample(mean_variants=[10, 50, 100, 300], control=True, positive_choices=None, negative_instances=False):
     if negative_instances and len(positive_choices) <= 1:
         raise ValueError
     total_count = int(np.random.normal(np.random.choice(mean_variants, 1), 10))
@@ -21,15 +18,16 @@ def generate_sample(mean_variants=[50, 100, 300], mean_positive=None, control=Tr
         total_count = 1
     if control:
         if negative_instances:
-            positive_count = int(np.ceil(mean_positive * total_count))
+            positive_count = int(np.ceil(np.random.random() * total_count))
             control_count = total_count - positive_count
         else:
             control_count = total_count
             positive_count = 0
     else:
-        positive_count = int(np.ceil(mean_positive * total_count))
-        control_count = total_count + positive_count * len(positive_choices)
+        positive_counts = [int(np.ceil(np.random.random() / len(positive_choices) * total_count)) for i in positive_choices]
+        control_count = total_count - sum(positive_counts)
 
+    control_count = max(control_count, 0)
     positive_variants = []
     positive_instances = []
 
@@ -58,7 +56,7 @@ def generate_sample(mean_variants=[50, 100, 300], mean_positive=None, control=Tr
 
     else:
         for index, i in enumerate(positive_choices):
-            for ii in range(positive_count):
+            for ii in range(positive_counts[index]):
                 positive_variants.append(i)
                 positive_instances.append(index + 1)
 
@@ -78,17 +76,17 @@ instances = {'sample_idx': [],
                   'class': []}
 
 ##how many different variants you want to label a positive sample
-positive_choices = [generate_variant() for i in range(1)]
+positive_choices = [generate_variant() for i in range(2)]
 
 samples = {'classes': []}
 
-for idx in range(500):
+for idx in range(1000):
     ##what percent of samples are control
     if np.random.sample() < .5:
-        variants = generate_sample(negative_instances=False, mean_positive=.02, positive_choices=positive_choices)
+        variants = generate_sample(negative_instances=True, positive_choices=positive_choices)
         samples['classes'] = samples['classes'] + [0]
     else:
-        variants = generate_sample(control=False, mean_positive=.02, positive_choices=positive_choices)
+        variants = generate_sample(control=False, positive_choices=positive_choices)
         samples['classes'] = samples['classes'] + [1]
     instances['sample_idx'] = instances['sample_idx'] + [idx] * len(variants[0])
     instances['seq_5p'] = instances['seq_5p'] + [i[0] for i in variants[0]]
@@ -124,7 +122,7 @@ t[i] = variant_encoding[instances['seq_alt'][:, ::-1]][i[:, ::-1]]
 instances['seq_alt'] = np.stack([instances['seq_alt'], t], axis=2)
 del i, t
 
-with open(cwd / 'sim_data' / 'sim_data.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'classification' / 'experiment_3' / 'sim_data.pkl', 'wb') as f:
     pickle.dump([instances, samples, ], f)
 
 
