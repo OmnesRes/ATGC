@@ -52,36 +52,25 @@ tfds_test = tfds_test.batch(len(idx_test), drop_remainder=False)
 
 tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
 
-mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='sum')
-losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=False)]
-mil.model.compile(loss=losses,
-                  metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=False)],
-                  optimizer=tf.keras.optimizers.Adam(learning_rate=0.001, clipvalue=10000))
-callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=200, mode='min', restore_best_weights=True)]
-history=mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=10000, callbacks=callbacks)
+histories = []
+evaluations = []
+weights = []
+for i in range(3):
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='sum')
+    losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=False)]
+    mil.model.compile(loss=losses,
+                      metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=False)],
+                      optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
+                      clipvalue=10000
+                    ))
+    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=200, mode='min', restore_best_weights=True)]
+    history = mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=10000, callbacks=callbacks)
+    evaluation = mil.model.evaluate(tfds_test)
+    histories.append(history.history)
+    evaluations.append(evaluation)
+    weights.append(mil.model.get_weights())
+    del mil
 
-mil.model.evaluate(tfds_test)
 
-##mean [0.08080033957958221, 0.9950000047683716, 0.08069175481796265] took 5300 steps, didn't need clip
-##sum[0.34329527616500854, 0.9800000190734863, 0.024718567728996277] had to add clip
-# attention = mil.attention_model.predict(tfds_test).to_list()
-# attention = [j[1] for i in attention for j in i]
-# attention = np.array(attention)
-# instance_labels = []
-#
-# for i in idx_test:
-#     instance_labels += list(D['class'][indexes][np.where(D['sample_idx'] == i)])
-# instance_labels = np.array(instance_labels)
-#
-import pylab as plt
-# fig = plt.figure()
-# ax = fig.add_subplot(111)
-# # ax.hist(attention[np.where(instance_labels == 0)], bins=100, edgecolor='k')
-# ax.hist(attention[np.where(instance_labels == 1)], bins=100, edgecolor='k')
-# # ax.hist(attention[np.where(instance_labels == 2)], bins=100, edgecolor='k')
-# # plt.xlim(np.min(attention)-1, np.max(attention)+1)
-# plt.show()
-#
-
-plt.plot(history.history['val_categorical_crossentropy'])
-plt.show()
+with open(cwd / 'sim_data' / 'classification' / 'experiment_4' / 'instance_model_sum.pkl', 'wb') as f:
+    pickle.dump([evaluations, histories, weights], f)

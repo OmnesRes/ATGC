@@ -42,7 +42,7 @@ valid_data = (tf.gather(five_p, idx_valid), tf.gather(three_p, idx_valid), tf.ga
 test_data = (tf.gather(five_p, idx_test), tf.gather(three_p, idx_test), tf.gather(ref, idx_test), tf.gather(alt, idx_test), tf.gather(strand, idx_test))
 
 tfds_train = tf.data.Dataset.from_tensor_slices((train_data, y_label[idx_train]))
-tfds_train = tfds_train.shuffle(len(y_label), reshuffle_each_iteration=True).batch(len(idx_train), drop_remainder=True)
+tfds_train = tfds_train.shuffle(len(idx_train), reshuffle_each_iteration=True).batch(len(idx_train), drop_remainder=True)
 
 tfds_valid = tf.data.Dataset.from_tensor_slices((valid_data, y_label[idx_valid]))
 tfds_valid = tfds_valid.batch(len(idx_valid), drop_remainder=False)
@@ -52,20 +52,31 @@ tfds_test = tfds_test.batch(len(idx_test), drop_remainder=False)
 
 tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
 
-mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='sum', regularization=0)
-losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
-mil.model.compile(loss=losses,
-                  metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],
-                  optimizer=tf.keras.optimizers.Adam(learning_rate=0.001))
-callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=50, mode='min', restore_best_weights=True)]
-mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=10000, callbacks=callbacks)
+histories = []
+evaluations = []
+weights = []
+for i in range(3):
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='sum')
+    losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
+    mil.model.compile(loss=losses,
+                      metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],
+                      optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
+                    ))
+    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=50, mode='min', restore_best_weights=True)]
+    history = mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=10000, callbacks=callbacks)
+    evaluation = mil.model.evaluate(tfds_test)
+    histories.append(history.history)
+    evaluations.append(evaluation)
+    weights.append(mil.model.get_weights())
+    del mil
 
-mil.model.evaluate(tfds_test)
 
-##sum  [0.2050796002149582, 1.0, 0.00013886769011151046], [0.17352259159088135, 1.0, 0.0002524906303733587] (no regularization)
-##mean  [0.15316298604011536, 1.0, 0.0005315561429597437], [0.2443767488002777, 1.0, 0.0009009369532577693] (no regularization, only took 91 steps)
-attention = mil.attention_model.predict(tfds_test).to_list()
-attention = [k for i in attention for j in i for k in j]
-import pylab as plt
-plt.hist(attention, bins=100)
-plt.show()
+# with open(cwd / 'sim_data' / 'classification' / 'experiment_4' / 'sample_model_sum.pkl', 'wb') as f:
+#     pickle.dump([evaluations, histories, weights], f)
+
+
+# attention = mil.attention_model.predict(tfds_test).to_list()
+# attention = [k for i in attention for j in i for k in j]
+# import pylab as plt
+# plt.hist(attention, bins=100)
+# plt.show()

@@ -165,8 +165,10 @@ class RaggedModels:
             else:
                 fused = pooled_hidden[-1]
 
+            fused = tf.keras.layers.Dense(units=64, activation='relu')(fused)
             fused = tf.keras.layers.Dense(units=32, activation='relu')(fused)
             fused = tf.keras.layers.Dense(units=16, activation='relu')(fused)
+
 
             if self.output_type == 'quantiles':
                 output_layers = (4, 1)

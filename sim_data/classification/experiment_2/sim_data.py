@@ -9,14 +9,16 @@ else:
 
 
 ##random witness rate
-def generate_sample(mean_variants=[10, 50, 100, 300], control=True, positive_choices=None, negative_instances=False):
+def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250, 300],
+                    control=True, positive_choices=None, negative_instances=False):
     if negative_instances and len(positive_choices) <= 1:
         raise ValueError
-    total_count = int(np.random.normal(np.random.choice(mean_variants, 1), 10))
+    center = np.random.choice(mean_variants, 1)
+    total_count = int(np.random.normal(center, int(np.ceil(center * .2))))
     if total_count < 1:
         total_count *= -1
     if total_count == 0:
-        total_count = 1
+        total_count = np.random.choice([2, 3, 4, 5, 6], 1)
     if control:
         if negative_instances:
             positive_count = int(np.ceil(np.random.random() * total_count))

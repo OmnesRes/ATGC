@@ -11,19 +11,19 @@ else:
     import sys
     sys.path.append(str(cwd))
 
-D, samples = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'sim_data.pkl', 'rb'))
 
-instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'instance_model_sum.pkl', 'rb'))
-instance_mean_evaluations, instance_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'instance_model_mean.pkl', 'rb'))
-sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sample_model_sum.pkl', 'rb'))
-sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sample_model_mean.pkl', 'rb'))
+instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'instance_model_sum.pkl', 'rb'))
+instance_mean_evaluations, instance_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'instance_model_mean.pkl', 'rb'))
+sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'sample_model_sum.pkl', 'rb'))
+sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'sample_model_mean.pkl', 'rb'))
 
 
 ##sample characteristics
 sizes = np.unique(D['sample_idx'], return_counts=True)
 plt.hist(sizes[1], bins=100)
 plt.show()
-# ##witness rate
+# # ##witness rate
 rates = []
 for index, i in enumerate(samples['classes']):
     if i == 1:
@@ -31,7 +31,7 @@ for index, i in enumerate(samples['classes']):
         witness_rate = len(np.where(variants != 0)[0]) / len(variants)
         rates.append(witness_rate)
 
-plt.hist(rates, bins=20)
+plt.hist(rates, bins=50)
 plt.xlim(0, 1)
 plt.show()
 

@@ -56,7 +56,7 @@ histories = []
 evaluations = []
 weights = []
 for i in range(3):
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='mean')
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='sum')
     losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
     mil.model.compile(loss=losses,
                       metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],
@@ -71,5 +71,5 @@ for i in range(3):
     del mil
 
 
-with open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sample_model_mean.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sample_model_sum.pkl', 'wb') as f:
     pickle.dump([evaluations, histories, weights], f)

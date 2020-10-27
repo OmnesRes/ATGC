@@ -144,7 +144,10 @@ class RaggedModels:
                 ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=32, activation=tf.keras.activations.relu))(ragged_fused)
                 ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu))(ragged_hidden)
 
-                instance_predictions = Ragged.MapFlatValues(tf.keras.layers.Dense(units=self.output_dim, activation=self.instance_activation, use_bias=True))(ragged_hidden)
+                instance_predictions = Ragged.MapFlatValues(tf.keras.layers.Dense(units=self.output_dim,
+                                                                                  # activation=ANLU(),
+                                                                                  activation=self.instance_activation,
+                                                                                  use_bias=True))(ragged_hidden)
 
                 ##MIL pooling
                 if self.pooling == 'max':
@@ -165,7 +168,7 @@ class RaggedModels:
                 pass
             elif self.output_type == 'regression':
                 ##assume positive label
-                output_tensor = tf.keras.activations.relu(pooling)
+                output_tensor = tf.math.log(pooling + 1)
             else:
                 probabilities = tf.keras.activations.softplus(pooling)
                 probabilities = probabilities / tf.expand_dims(tf.reduce_sum(probabilities, axis=-1), axis=-1)

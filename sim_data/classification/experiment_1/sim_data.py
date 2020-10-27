@@ -80,8 +80,10 @@ instances = {'sample_idx': [],
                   'cds': [],
                   'class': []}
 
+
 ##how many different variants you want to label a positive sample
 positive_choices = [generate_variant() for i in range(1)]
+
 
 samples = {'classes': []}
 

@@ -66,7 +66,7 @@ for i in range(3):
     callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=100, mode='min', restore_best_weights=True)]
     history = mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=10000, callbacks=callbacks)
     evaluation = mil.model.evaluate(tfds_test)
-    histories.append(history)
+    histories.append(history.history)
     evaluations.append(evaluation)
     weights.append(mil.model.get_weights())
     del mil

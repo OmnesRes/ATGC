@@ -52,18 +52,24 @@ tfds_test = tfds_test.batch(len(idx_test), drop_remainder=False)
 
 tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
 
-mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='mean')
-losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
-mil.model.compile(loss=losses,
-                  metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],
-                  optimizer=tf.keras.optimizers.Adam(learning_rate=0.001))
-callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=50, mode='min', restore_best_weights=True)]
-history = mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=10000, callbacks=callbacks)
+histories = []
+evaluations = []
+weights = []
+for i in range(3):
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='sum')
+    losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
+    mil.model.compile(loss=losses,
+                      metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],
+                      optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
+                    ))
+    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=50, mode='min', restore_best_weights=True)]
+    history = mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=10000, callbacks=callbacks)
+    evaluation = mil.model.evaluate(tfds_test)
+    histories.append(history.history)
+    evaluations.append(evaluation)
+    weights.append(mil.model.get_weights())
+    del mil
 
-mil.model.evaluate(tfds_test)
 
-##sum output: [0.2521795630455017, 1.0, 0.004285361617803574]
-##mean output: [0.03726158291101456, 1.0, 0.001666973577812314]
-
-# with open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'sample_model_mean.pkl', 'wb') as f:
-#     pickle.dump([history.history, mil.model.get_weights()], f)
+with open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'sample_model_sum.pkl', 'wb') as f:
+    pickle.dump([evaluations, histories, weights], f)
