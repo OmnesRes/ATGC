@@ -144,18 +144,17 @@ class RaggedModels:
                 ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=32, activation=tf.keras.activations.relu))(ragged_fused)
                 ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu))(ragged_hidden)
 
-                instance_predictions = Ragged.MapFlatValues(tf.keras.layers.Dense(units=self.output_dim,
-                                                                                  # activation=ANLU(),
-                                                                                  activation=self.instance_activation,
-                                                                                  use_bias=True))(ragged_hidden)
-
+                if self.output_type == 'regression':
+                    instance_predictions = Ragged.MapFlatValues(tf.keras.layers.Dense(units=self.output_dim,
+                                                                                      activation='softplus',
+                                                                                      use_bias=True))(ragged_hidden)
+                else:
+                    instance_predictions = Ragged.MapFlatValues(tf.keras.layers.Dense(units=self.output_dim,
+                                                                                      activation=self.instance_activation,
+                                                                                      use_bias=True))(ragged_hidden)
                 ##MIL pooling
-                if self.pooling == 'max':
-                    pooling = tf.keras.layers.Lambda(lambda x: tf.reduce_max(x, axis=instance_predictions.ragged_rank))(instance_predictions)
-                elif self.pooling == 'mean':
+                if self.pooling == 'mean':
                     pooling = tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, axis=instance_predictions.ragged_rank))(instance_predictions)
-                elif self.pooling == 'logsumexp':
-                    pooling = tf.math.log(tf.keras.layers.Lambda(lambda x: tf.math.reduce_sum(tf.math.exp(x), axis=instance_predictions.ragged_rank))(instance_predictions))
                 else:
                     pooling = tf.keras.layers.Lambda(lambda x: tf.reduce_sum(x, axis=instance_predictions.ragged_rank))(instance_predictions)
 
@@ -167,12 +166,13 @@ class RaggedModels:
                 ##quantiles with instance model needs to be done before aggregation
                 pass
             elif self.output_type == 'regression':
-                ##assume positive label
+                ##assumes log transformed output
                 output_tensor = tf.math.log(pooling + 1)
             else:
-                probabilities = tf.keras.activations.softplus(pooling)
-                probabilities = probabilities / tf.expand_dims(tf.reduce_sum(probabilities, axis=-1), axis=-1)
-                output_tensor = probabilities
+                output_tensor = pooling
+                # probabilities = tf.keras.activations.softplus(pooling)
+                # probabilities = probabilities / tf.expand_dims(tf.reduce_sum(probabilities, axis=-1), axis=-1)
+                # output_tensor = probabilities
 
             self.model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[output_tensor])
             self.attention_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[instance_predictions])

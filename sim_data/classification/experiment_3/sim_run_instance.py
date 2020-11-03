@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 from model.Instance_MIL import InstanceModels, RaggedModels
 from sklearn.model_selection import StratifiedShuffleSplit
@@ -41,7 +42,7 @@ valid_data = (tf.gather(five_p, idx_valid), tf.gather(three_p, idx_valid), tf.ga
 test_data = (tf.gather(five_p, idx_test), tf.gather(three_p, idx_test), tf.gather(ref, idx_test), tf.gather(alt, idx_test), tf.gather(strand, idx_test))
 
 tfds_train = tf.data.Dataset.from_tensor_slices((train_data, y_label[idx_train]))
-tfds_train = tfds_train.shuffle(len(y_label), reshuffle_each_iteration=True).batch(len(idx_train), drop_remainder=True)
+tfds_train = tfds_train.shuffle(len(y_label), reshuffle_each_iteration=True).batch(100, drop_remainder=True)
 
 tfds_valid = tf.data.Dataset.from_tensor_slices((valid_data, y_label[idx_valid]))
 tfds_valid = tfds_valid.batch(len(idx_valid), drop_remainder=False)
@@ -56,11 +57,10 @@ evaluations = []
 weights = []
 for i in range(3):
     mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='mean')
-    losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=False)]
+    losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
     mil.model.compile(loss=losses,
-                      metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=False)],
+                      metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],
                       optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
-                      # clipvalue=10000
                     ))
     callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=200, mode='min', restore_best_weights=True)]
     history = mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=10000, callbacks=callbacks)

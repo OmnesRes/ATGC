@@ -42,7 +42,7 @@ valid_data = (tf.gather(five_p, idx_valid), tf.gather(three_p, idx_valid), tf.ga
 test_data = (tf.gather(five_p, idx_test), tf.gather(three_p, idx_test), tf.gather(ref, idx_test), tf.gather(alt, idx_test), tf.gather(strand, idx_test))
 
 tfds_train = tf.data.Dataset.from_tensor_slices((train_data, y_label[idx_train]))
-tfds_train = tfds_train.shuffle(len(y_label), reshuffle_each_iteration=True).batch(len(idx_train), drop_remainder=True)
+tfds_train = tfds_train.shuffle(len(y_label), reshuffle_each_iteration=True).batch(100, drop_remainder=True)
 
 tfds_valid = tf.data.Dataset.from_tensor_slices((valid_data, y_label[idx_valid]))
 tfds_valid = tfds_valid.batch(len(idx_valid), drop_remainder=False)

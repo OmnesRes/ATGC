@@ -42,7 +42,7 @@ valid_data = (tf.gather(five_p, idx_valid), tf.gather(three_p, idx_valid), tf.ga
 test_data = (tf.gather(five_p, idx_test), tf.gather(three_p, idx_test), tf.gather(ref, idx_test), tf.gather(alt, idx_test), tf.gather(strand, idx_test))
 
 tfds_train = tf.data.Dataset.from_tensor_slices((train_data, y_label[idx_train]))
-tfds_train = tfds_train.shuffle(len(idx_train), reshuffle_each_iteration=True).batch(len(idx_train), drop_remainder=True)
+tfds_train = tfds_train.shuffle(len(y_label), reshuffle_each_iteration=True).batch(100, drop_remainder=True)
 
 tfds_valid = tf.data.Dataset.from_tensor_slices((valid_data, y_label[idx_valid]))
 tfds_valid = tfds_valid.batch(len(idx_valid), drop_remainder=False)
@@ -56,13 +56,13 @@ histories = []
 evaluations = []
 weights = []
 for i in range(3):
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum')
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='mean', output_type='regression')
     losses = ['mse']
     mil.model.compile(loss=losses,
                       metrics=['mse'],
                       optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
                     ))
-    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_mse', min_delta=0.0001, patience=80, mode='min', restore_best_weights=True)]
+    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_mse', min_delta=0.001, patience=40, mode='min', restore_best_weights=True)]
     history = mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=10000, callbacks=callbacks)
     evaluation = mil.model.evaluate(tfds_test)
     histories.append(history.history)
@@ -71,5 +71,5 @@ for i in range(3):
     del mil
 
 
-# with open(cwd / 'sim_data' / 'regression' / 'experiment_1' / 'sample_model_mean.pkl', 'wb') as f:
-#     pickle.dump([evaluations, histories, weights], f)
+with open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'sample_model_mean.pkl', 'wb') as f:
+    pickle.dump([evaluations, histories, weights], f)

@@ -127,8 +127,8 @@ class SampleModels:
 class RaggedModels:
 
     class MIL:
-        def __init__(self, instance_encoders=[], sample_encoders=[], instance_layers=[], sample_layers=[], pooled_layers=[], output_dim=1, output_type='classification', pooling='sum', regularization=.2):
-            self.instance_encoders, self.sample_encoders, self.instance_layers, self.sample_layers, self.pooled_layers, self.output_dim, self.output_type, self.pooling, self.regularization, = instance_encoders, sample_encoders, instance_layers, sample_layers, pooled_layers, output_dim, output_type, pooling, regularization
+        def __init__(self, instance_encoders=[], sample_encoders=[], instance_layers=[], sample_layers=[], pooled_layers=[], output_dim=1, output_type='classification', mode='attention', pooling='sum', regularization=.2):
+            self.instance_encoders, self.sample_encoders, self.instance_layers, self.sample_layers, self.pooled_layers, self.output_dim, self.output_type, self.mode, self.pooling, self.regularization, = instance_encoders, sample_encoders, instance_layers, sample_layers, pooled_layers, output_dim, output_type, mode, pooling, regularization
             self.model, self.attention_model = None, None
             self.build()
 
@@ -147,9 +147,16 @@ class RaggedModels:
                 for i in self.instance_layers:
                     ragged_hidden.append(Ragged.MapFlatValues(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu))(ragged_hidden[-1]))
 
-                pooling, ragged_attention_weights = Ragged.Attention(pooling=self.pooling, regularization=self.regularization)(ragged_hidden[-1])
+                if self.mode == 'attention':
+                    pooling, ragged_attention_weights = Ragged.Attention(pooling=self.pooling, regularization=self.regularization)(ragged_hidden[-1])
+                    pooled_hidden = [pooling[:, 0, :]]
+                else:
+                    if self.pooling == 'mean':
+                        pooling = tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, axis=ragged_hidden[-1].ragged_rank))(ragged_hidden[-1])
+                    else:
+                        pooling = tf.keras.layers.Lambda(lambda x: tf.reduce_sum(x, axis=ragged_hidden[-1].ragged_rank))(ragged_hidden[-1])
+                    pooled_hidden = [pooling]
 
-                pooled_hidden = [pooling[:, 0, :]]
                 for i in self.pooled_layers:
                     pooled_hidden = tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(pooled_hidden[-1])
 
@@ -165,10 +172,8 @@ class RaggedModels:
             else:
                 fused = pooled_hidden[-1]
 
-            fused = tf.keras.layers.Dense(units=64, activation='relu')(fused)
             fused = tf.keras.layers.Dense(units=32, activation='relu')(fused)
             fused = tf.keras.layers.Dense(units=16, activation='relu')(fused)
-
 
             if self.output_type == 'quantiles':
                 output_layers = (4, 1)
@@ -190,11 +195,17 @@ class RaggedModels:
 
                 output_tensor = pred[-1]
 
+            elif self.output_type == 'regression':
+                ##assumes log transformed output
+                pred = tf.keras.layers.Dense(units=self.output_dim, activation='softplus')(fused)
+                output_tensor = tf.math.log(pred + 1)
+
             else:
                 output_tensor = tf.keras.layers.Dense(units=self.output_dim, activation=None)(fused)
 
             self.model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[output_tensor])
-            self.attention_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[ragged_attention_weights])
+            if self.mode == 'attention':
+                self.attention_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[ragged_attention_weights])
 
 
 

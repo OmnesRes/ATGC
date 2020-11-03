@@ -7,7 +7,7 @@ if path.stem == 'ATGC2':
 else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
 
-##no intercept
+##nonlinear
 
 def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250, 300],
                     positive_choices=None):
@@ -43,7 +43,7 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
             positive_variants.append(i)
             positive_instances.append(index + 1)
 
-    sample_value = np.random.normal(positive_count * 10, 10)
+    sample_value = np.random.normal(positive_count**2, positive_count / 10)
     if sample_value < 0:
         sample_value *= -1
     return [control_variants + positive_variants, [0] * len(control_variants) + positive_instances, sample_value]

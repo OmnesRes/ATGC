@@ -40,10 +40,9 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
             positive_variants.append(i)
             positive_instances.append(index + 1)
 
-    sample_value = np.random.normal(positive_count * 10, 10)
+    sample_value = np.random.normal(positive_count, positive_count / 10)
     if sample_value < 0:
         sample_value *= -1
-    sample_value += 10
     return [control_variants + positive_variants, [0] * len(control_variants) + positive_instances, sample_value]
 
 ##dictionary for instance level data
@@ -105,10 +104,16 @@ with open(cwd / 'sim_data' / 'regression' / 'experiment_1' / 'sim_data.pkl', 'wb
     pickle.dump([instances, samples, ], f)
 
 
-#
-#
+
+
 #
 # import pylab as plt
-# # data = [np.random.normal(np.random.normal(20, 2) + 2 * 10, 10) for i in range(1000)]
-# plt.hist(samples['values'])
+# sample_counts = []
+# for i in range(len(samples['values'])):
+#     indexes = np.where(instances['sample_idx'] == i)
+#     sample_counts.append(sum(instances['class'][indexes]))
+#
+# plt.scatter(sample_counts, samples['values'], s=.1)
+# # plt.hist(samples['values'], bins=100)
+#
 # plt.show()
