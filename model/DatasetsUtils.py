@@ -1,17 +1,17 @@
 import numpy as np
 import tensorflow as tf
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import RepeatedStratifiedKFold
 
 
 class Apply:
     class StratifiedMinibatch:
-        def __init__(self, batch_size, ds_size):
+        def __init__(self, batch_size, ds_size, n_repeats=1):
             self.batch_size = batch_size
             self.ds_size = ds_size
             # max number of splits
             self.n_splits = self.ds_size // self.batch_size
             # stratified "mini-batch" via k-fold
-            self.batcher = StratifiedKFold(n_splits=self.n_splits, shuffle=True)
+            self.batcher = RepeatedStratifiedKFold(n_splits=self.n_splits, n_repeats=n_repeats)
 
         def __call__(self, ds_input: tf.data.Dataset):
             # expecting ds of (idx, y_true), drop remainder is implicit in this implementation

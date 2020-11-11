@@ -158,7 +158,7 @@ class RaggedModels:
                     pooled_hidden = [pooling]
 
                 for i in self.pooled_layers:
-                    pooled_hidden = tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(pooled_hidden[-1])
+                    pooled_hidden.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(pooled_hidden[-1]))
 
             ##sample level model encodings
             sample_inputs = [[tf.keras.layers.Input(shape=input_tensor.shape[1:], dtype=input_tensor.dtype) for input_tensor in encoder.inputs] for encoder in self.sample_encoders]
@@ -166,17 +166,21 @@ class RaggedModels:
                 sample_encodings = [encoder(sample_input) for sample_input, encoder in zip(sample_inputs, self.sample_encoders)]
                 sample_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=-1))(sample_encodings)
                 if self.instance_encoders != []:
-                    fused = tf.concat([pooled_hidden[-1], sample_fused], axis=-1)
+                    fused = [tf.concat([pooled_hidden[-1], sample_fused], axis=-1)]
                 else:
-                    fused = sample_fused
-            else:
-                fused = pooled_hidden[-1]
+                    fused = [sample_fused]
 
-            fused = tf.keras.layers.Dense(units=32, activation='relu')(fused)
+                for i in self.sample_layers:
+                    fused.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(fused[-1]))
+
+            else:
+                fused = [pooled_hidden[-1]]
+
+            fused = tf.keras.layers.Dense(units=32, activation='relu')(fused[-1])
             fused = tf.keras.layers.Dense(units=16, activation='relu')(fused)
 
             if self.output_type == 'quantiles':
-                output_layers = (4, 1)
+                output_layers = (8, 1)
                 point_estimate, lower_bound, upper_bound = list(), list(), list()
                 for i in range(len(output_layers)):
                     point_estimate.append(tf.keras.layers.Dense(units=output_layers[i], activation=None if i == (len(output_layers) - 1) else tf.keras.activations.softplus)(fused if i == 0 else point_estimate[-1]))
@@ -185,7 +189,7 @@ class RaggedModels:
                     for i in range(len(output_layers)):
                         l.append(tf.keras.layers.Dense(units=output_layers[i], activation=tf.keras.activations.softplus)(fused if i == 0 else l[-1]))
 
-                output_tensor = tf.keras.activations.softplus(tf.concat([point_estimate[-1] - lower_bound[-1], point_estimate[-1], point_estimate[-1] + upper_bound[-1]], axis=1))
+                output_tensor = tf.math.log(tf.keras.activations.softplus(tf.concat([point_estimate[-1] - lower_bound[-1], point_estimate[-1], point_estimate[-1] + upper_bound[-1]], axis=1)) + 1)
 
             elif self.output_type == 'survival':
                 output_layers = (4, 1)
