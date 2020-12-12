@@ -1,6 +1,5 @@
 import tensorflow as tf
-from model.KerasLayers import Activations, Ragged, Convolutions
-from model.CustomLayers import ANLU, AISRU, Embed, StrandWeight
+from model.KerasLayers import Activations, Ragged, Embed, StrandWeight
 
 class InstanceModels:
 
@@ -18,12 +17,12 @@ class InstanceModels:
             chromosome_input = tf.keras.layers.Input(shape=(), dtype=tf.int32)
             chromosome_emb = Embed(embedding_dimension=self.chromosome_embedding_dimension, trainable=False)
             position_emb = Embed(embedding_dimension=self.position_embedding_dimension, trainable=False, triangular=False)
-            pos_loc = tf.keras.layers.Dense(units=64, activation=AISRU())(position_input)
-            pos_loc = tf.keras.layers.Dense(units=32, activation=ANLU())(pos_loc)
+            pos_loc = tf.keras.layers.Dense(units=64, activation=Activations.ASU())(position_input)
+            pos_loc = tf.keras.layers.Dense(units=32, activation=Activations.ARU())(pos_loc)
             pos_loc = tf.concat([position_emb(position_bin), pos_loc], axis=-1)
-            pos_loc = tf.keras.layers.Dense(units=96, activation=ANLU())(pos_loc)
+            pos_loc = tf.keras.layers.Dense(units=96, activation=Activations.ARU())(pos_loc)
             fused = tf.concat([chromosome_emb(chromosome_input), pos_loc], axis=-1)
-            latent = tf.keras.layers.Dense(units=128, activation=ANLU())(fused)
+            latent = tf.keras.layers.Dense(units=128, activation=Activations.ARU())(fused)
             self.model = tf.keras.Model(inputs=[position_input, position_bin, chromosome_input], outputs=[latent])
 
 
@@ -51,7 +50,7 @@ class InstanceModels:
             convolutions = [[]] * 4
             nucleotide_emb = Embed(embedding_dimension=4, trainable=False)
             for index, feature in enumerate([five_p, three_p, ref, alt]):
-                convolutions[index] = tf.keras.layers.Conv2D(filters=self.convolution_params[index], kernel_size=[1, self.sequence_length], activation=ANLU())
+                convolutions[index] = tf.keras.layers.Conv2D(filters=self.convolution_params[index], kernel_size=[1, self.sequence_length], activation=Activations.ARU())
                 # apply conv to forward and reverse
                 features[index] = tf.stack([convolutions[index](nucleotide_emb(feature)[:, tf.newaxis, :, i, :]) for i in range(self.n_strands)], axis=3)
                 # pool over any remaining positions
@@ -110,7 +109,7 @@ class SampleModels:
             features = [[]] * 3
             convolutions = [[]] * 3
             for index, feature in enumerate([hla_A, hla_B, hla_C]):
-                convolutions[index] = tf.keras.layers.Conv2D(filters=self.filters, kernel_size=[1, 1], activation=ANLU())
+                convolutions[index] = tf.keras.layers.Conv2D(filters=self.filters, kernel_size=[1, 1], activation=Activations.ARU())
                 # apply conv to each allele
                 features[index] = convolutions[index](feature[:, tf.newaxis, :, :])
                 # pool over both alleles

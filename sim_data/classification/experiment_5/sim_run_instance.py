@@ -1,12 +1,12 @@
 import numpy as np
 import tensorflow as tf
-from model.Sample_MIL import InstanceModels, RaggedModels
+from model.Instance_MIL import InstanceModels, RaggedModels
 from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[3], True)
-tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[4], True)
+tf.config.experimental.set_visible_devices(physical_devices[4], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
@@ -18,7 +18,7 @@ else:
     sys.path.append(str(cwd))
 
 ##load the instance and sample data
-D, samples = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_4' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_5' / 'sim_data.pkl', 'rb'))
 
 ##perform embeddings with a zero vector for index 0
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
@@ -89,9 +89,7 @@ for i in range(3):
     histories.append(history.history)
     evaluations.append(evaluation)
     weights.append(mil.model.get_weights())
-    del mil
 
 
-with open(cwd / 'sim_data' / 'classification' / 'experiment_4' / 'sample_model_sum.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'classification' / 'experiment_5' / 'instance_model_sum.pkl', 'wb') as f:
     pickle.dump([evaluations, histories, weights], f)
-

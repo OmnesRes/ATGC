@@ -18,7 +18,7 @@ else:
     sys.path.append(str(cwd))
 
 ##load the instance and sample data
-D, samples = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_4' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_5' / 'sim_data.pkl', 'rb'))
 
 ##perform embeddings with a zero vector for index 0
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
@@ -89,9 +89,9 @@ for i in range(3):
     histories.append(history.history)
     evaluations.append(evaluation)
     weights.append(mil.model.get_weights())
-    del mil
 
 
-with open(cwd / 'sim_data' / 'classification' / 'experiment_4' / 'sample_model_sum.pkl', 'wb') as f:
-    pickle.dump([evaluations, histories, weights], f)
+
+# with open(cwd / 'sim_data' / 'classification' / 'experiment_5' / 'sample_model_sum.pkl', 'wb') as f:
+#     pickle.dump([evaluations, histories, weights], f)
 

@@ -59,7 +59,8 @@ metrics = [RaggedModels.losses.QuantileLoss()]
 losses = [RaggedModels.losses.QuantileLoss()]
 
 for i in range(runs):
-    tile_encoder = InstanceModels.PassThrough(shape=(1, ))
+    # tile_encoder = InstanceModels.PassThrough(shape=(1, ))
+    tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
     sample_encoder = SampleModels.PassThrough(shape=(samples['histology'].shape[-1], ))
     mil = RaggedModels.MIL(mode='aggregation', instance_encoders=[tile_encoder.model], pooled_layers=[64], sample_layers=[64, 32], sample_encoders=[sample_encoder.model], output_dim=1, output_type='quantiles')
     # mil.model.trainable = False
@@ -73,43 +74,45 @@ for idx_train, idx_test in StratifiedKFold(n_splits=8, random_state=0, shuffle=T
 idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=1500, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
 
-from sklearn.model_selection import RepeatedStratifiedKFold
-
-class Apply:
-    class StratifiedMinibatch:
-        def __init__(self, batch_size, ds_size):
-            self.batch_size, self.ds_size = batch_size, ds_size
-            # max number of splits
-            self.n_splits = self.ds_size // self.batch_size
-            # stratified "mini-batch" via k-fold
-            self.batcher = RepeatedStratifiedKFold(n_splits=self.n_splits, n_repeats=10000)
-
-        def __call__(self, ds_input: tf.data.Dataset):
-            def generator():
-                idx, *samples, y_true, y_strat = list(map(tf.stack, list(map(list, zip(*list(ds_input.take(self.n_splits * self.batch_size)))))))
-                for _, idx_batch in self.batcher.split(y_strat, y_strat):
-                    samples_batched = [tf.gather(sample, idx_batch, axis=0) for sample in samples]
-                    yield(tuple([tf.gather(idx, idx_batch, axis=0)] + samples_batched + [tf.gather(y_true, idx_batch, axis=0)]))
-
-            return tf.data.Dataset.from_generator(generator,
-                                                  output_types=tuple([i.dtype for i in ds_input.element_spec[: -1]]),
-                                                  )
-
-
-
-
-ds_train = tf.data.Dataset.from_tensor_slices((idx_train, samples['histology'][idx_train], y_label[idx_train], y_strat[idx_train]))
+ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_strat[idx_train]))
 # ds_train.shuffle(buffer_size=len(idx_train), reshuffle_each_iteration=True)
-ds_train = ds_train.apply(Apply.StratifiedMinibatch(batch_size=512, ds_size=len(idx_train)))
-x_loader = DatasetsUtils.Map.LoadBatchIndex(loaders=[DatasetsUtils.Loaders.FromNumpy(ones, tf.float32)])
-ds_train = ds_train.repeat().map(lambda *args: (((x_loader(args[0], to_ragged=[True]), ) + args[1: -1]), args[-1]))
+ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=512, ds_size=len(idx_train)))
+# x_loader = DatasetsUtils.Map.LoadBatchIndex(loaders=[DatasetsUtils.Loaders.FromNumpy(ones, tf.float32)])
+# ds_train = ds_train.map(lambda x, y: ((x_loader(x, to_ragged=[True]), tf.gather(tf.constant(samples['histology']), x)), y))
+
+# x_loader = DatasetsUtils.Map.FromNumpy(ones, tf.float32)
+five_p_loader = DatasetsUtils.Map.FromNumpy(five_p, tf.int32)
+three_p_loader = DatasetsUtils.Map.FromNumpy(three_p, tf.int32)
+ref_loader = DatasetsUtils.Map.FromNumpy(ref, tf.int32)
+alt_loader = DatasetsUtils.Map.FromNumpy(alt, tf.int32)
+strand_loader = DatasetsUtils.Map.FromNumpy(strand, tf.float32)
 
 
+ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
+                                       three_p_loader(x, ragged_output=True),
+                                       ref_loader(x, ragged_output=True),
+                                       alt_loader(x, ragged_output=True),
+                                       strand_loader(x, ragged_output=True),
+                                       tf.gather(tf.constant(samples['histology']), x)), y))
 
-ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, samples['histology'][idx_valid], y_label[idx_valid], y_strat[idx_valid]))
+
+#
+# indexes = []
+# batcher = StratifiedKFold(n_splits=len(idx_train) // 512, shuffle=True)
+# for _, idx_batch in batcher.split(y_strat[idx_train], y_strat[idx_train]):
+#     indexes.append(idx_train[idx_batch])
+
+
+# first_epoch = []
+# for i in iter(ds_train):
+#     first_epoch.append(i[0])
+#
+# result = np.unique(np.concatenate(first_epoch), return_counts=True)
+
+# ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, samples['histology'][idx_valid], y_label[idx_valid], y_strat[idx_valid]))
 # ds_valid = ds_valid.apply(Apply.StratifiedMinibatch(batch_size=512, ds_size=len(idx_valid)))
-ds_valid = ds_valid.batch(len(idx_valid), drop_remainder=False)
-ds_valid = ds_valid.map(lambda *args: (((x_loader(args[0], to_ragged=[True]), ) + args[1: -1]), args[-1]))
+# ds_valid = ds_valid.batch(len(idx_valid), drop_remainder=False)
+# ds_valid = ds_valid.map(lambda *args: (((x_loader(args[0], to_ragged=[True]), ) + args[1: -1]), args[-1]))
 
 
 

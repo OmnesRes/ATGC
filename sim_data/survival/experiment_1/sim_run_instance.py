@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from model.Instance_MIL import InstanceModels, RaggedModels
+from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 from lifelines.utils import concordance_index
 import pickle
@@ -24,22 +25,35 @@ D, samples = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / '
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
 D['strand_emb'] = strand_emb_mat[D['strand']]
 
-indexes = np.argsort(D['sample_idx'])
+indexes = [np.where(D['sample_idx'] == idx) for idx in range(len(samples['classes']))]
 
-five_p = tf.RaggedTensor.from_value_rowids(D['seq_5p'][indexes].astype(np.int32), D['sample_idx'][indexes], nrows=len(samples['classes']))
-three_p = tf.RaggedTensor.from_value_rowids(D['seq_3p'][indexes].astype(np.int32), D['sample_idx'][indexes], nrows=len(samples['classes']))
-ref = tf.RaggedTensor.from_value_rowids(D['seq_ref'][indexes].astype(np.int32), D['sample_idx'][indexes], nrows=len(samples['classes']))
-alt = tf.RaggedTensor.from_value_rowids(D['seq_alt'][indexes].astype(np.int32), D['sample_idx'][indexes], nrows=len(samples['classes']))
-strand = tf.RaggedTensor.from_value_rowids(D['strand_emb'][indexes].astype(np.float32), D['sample_idx'][indexes], nrows=len(samples['classes']))
+five_p = np.array([D['seq_5p'][i] for i in indexes], dtype='object')
+three_p = np.array([D['seq_3p'][i] for i in indexes], dtype='object')
+ref = np.array([D['seq_ref'][i] for i in indexes], dtype='object')
+alt = np.array([D['seq_alt'][i] for i in indexes], dtype='object')
+strand = np.array([D['strand_emb'][i] for i in indexes], dtype='object')
+
+five_p_loader = DatasetsUtils.Map.FromNumpy(five_p, tf.int32)
+three_p_loader = DatasetsUtils.Map.FromNumpy(three_p, tf.int32)
+ref_loader = DatasetsUtils.Map.FromNumpy(ref, tf.int32)
+alt_loader = DatasetsUtils.Map.FromNumpy(alt, tf.int32)
+strand_loader = DatasetsUtils.Map.FromNumpy(strand, tf.float32)
 
 cancer_strat = np.zeros_like(samples['classes']) ##no cancer info in this simulated data
-y_label = np.stack(np.concatenate([samples['times'][:, np.newaxis], samples['censor'][:, np.newaxis], cancer_strat[:, np.newaxis]], axis=-1))
+y_label = np.stack(np.concatenate([samples['times'][:, np.newaxis], samples['event'][:, np.newaxis], cancer_strat[:, np.newaxis]], axis=-1))
 strat_dict = {key: index for index, key in enumerate(set(tuple([group, event]) for group, event in zip(samples['classes'], y_label[:, 1])))}
 y_strat = np.array([strat_dict[(group, event)] for group, event in zip(samples['classes'], y_label[:, 1])])
 class_counts = dict(zip(*np.unique(y_strat, return_counts=True)))
 
-tfds_all = tf.data.Dataset.from_tensor_slices(((five_p, three_p, ref, alt, strand), y_label))
-tfds_all = tfds_all.batch(len(y_label), drop_remainder=False)
+ds_all = tf.data.Dataset.from_tensor_slices((np.arange(len(y_label)), y_label))
+ds_all = ds_all.batch(len(y_label), drop_remainder=False)
+ds_all = ds_all.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
+                                       three_p_loader(x, ragged_output=True),
+                                       ref_loader(x, ragged_output=True),
+                                       alt_loader(x, ragged_output=True),
+                                       strand_loader(x, ragged_output=True)),
+                                       y))
+
 
 histories = []
 evaluations = []
@@ -51,39 +65,53 @@ cancer_test_expectation_ranks = {}
 
 for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_strat, y_strat):
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
-    train_data = (tf.gather(five_p, idx_train), tf.gather(three_p, idx_train), tf.gather(ref, idx_train), tf.gather(alt, idx_train), tf.gather(strand, idx_train))
-    valid_data = (tf.gather(five_p, idx_valid), tf.gather(three_p, idx_valid), tf.gather(ref, idx_valid), tf.gather(alt, idx_valid), tf.gather(strand, idx_valid))
-    test_data = (tf.gather(five_p, idx_test), tf.gather(three_p, idx_test), tf.gather(ref, idx_test), tf.gather(alt, idx_test), tf.gather(strand, idx_test))
 
-    tfds_train = tf.data.Dataset.from_tensor_slices((train_data, y_label[idx_train]))
-    tfds_train = tfds_train.shuffle(len(y_label), reshuffle_each_iteration=True).batch(250, drop_remainder=True)
+    ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_strat[idx_train]))
+    ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=250, ds_size=len(idx_train)))
+    ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
+                                           three_p_loader(x, ragged_output=True),
+                                           ref_loader(x, ragged_output=True),
+                                           alt_loader(x, ragged_output=True),
+                                           strand_loader(x, ragged_output=True)),
+                                          y))
 
-    tfds_valid = tf.data.Dataset.from_tensor_slices((valid_data, y_label[idx_valid]))
-    tfds_valid = tfds_valid.batch(len(idx_valid), drop_remainder=False)
+    ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, y_label[idx_valid]))
+    ds_valid = ds_valid.batch(len(idx_valid), drop_remainder=False)
+    ds_valid = ds_valid.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
+                                           three_p_loader(x, ragged_output=True),
+                                           ref_loader(x, ragged_output=True),
+                                           alt_loader(x, ragged_output=True),
+                                           strand_loader(x, ragged_output=True)),
+                                          y))
 
-    tfds_test = tf.data.Dataset.from_tensor_slices((test_data, y_label[idx_test]))
-    tfds_test = tfds_test.batch(len(idx_test), drop_remainder=False)
+    ds_test = tf.data.Dataset.from_tensor_slices((idx_test, y_label[idx_test]))
+    ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
+    ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
+                                         three_p_loader(x, ragged_output=True),
+                                         ref_loader(x, ragged_output=True),
+                                         alt_loader(x, ragged_output=True),
+                                         strand_loader(x, ragged_output=True)),
+                                        y))
     X = False
     while X == False:
         try:
             tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-            mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum')
+            mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='mean', output_type='other')
             losses = [RaggedModels.losses.CoxPH()]
             mil.model.compile(loss=losses,
                               metrics=[RaggedModels.losses.CoxPH()],
                               optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
                             ))
-            callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_coxph', min_delta=0.0001, patience=20, mode='min', restore_best_weights=True)]
-            history = mil.model.fit(tfds_train, validation_data=tfds_valid, epochs=10000, callbacks=callbacks)
-            evaluation = mil.model.evaluate(tfds_test)
+            callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_coxph', min_delta=0.0001, patience=10, mode='min', restore_best_weights=True)]
+            history = mil.model.fit(ds_train, steps_per_epoch=4, validation_data=ds_valid, epochs=10000, callbacks=callbacks)
+            evaluation = mil.model.evaluate(ds_test)
             histories.append(history.history)
             evaluations.append(evaluation)
             weights.append(mil.model.get_weights())
-            y_pred_all = mil.model.predict(tfds_all)
+            y_pred_all = mil.model.predict(ds_all)
             X = True
         except:
-            del mil
-            del tile_encoder
+            pass
     ##get ranks per cancer
     for index, cancer in enumerate(['NA']):
         mask = np.where(cancer_strat == index)[0]
@@ -92,13 +120,11 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
         ranks = np.empty_like(temp)
         ranks[temp] = np.arange(len(mask))
         cancer_test_ranks[cancer] = cancer_test_ranks.get(cancer, []) + [ranks[np.isin(mask, idx_test, assume_unique=True)]]
-    del mil
-    del tile_encoder
 
 
 indexes = np.concatenate(cancer_test_indexes['NA'])
 ranks = np.concatenate(cancer_test_ranks['NA'])
-concordance_index(samples['times'][indexes], ranks, samples['censor'][indexes])
+concordance_index(samples['times'][indexes], ranks, samples['event'][indexes])
 
 
 
@@ -108,9 +134,9 @@ concordance_index(samples['times'][indexes], ranks, samples['censor'][indexes])
 
 # predictions = mil.model.predict(tfds_train)
 # from lifelines.utils import concordance_index
-# concordance_index(samples['times'][idx_train], np.exp(-predictions), samples['censor'][idx_train])
-# concordance_index(samples['times'], np.exp(-1 * samples['classes']), samples['censor'])
+# concordance_index(samples['times'][idx_train], np.exp(-predictions), samples['event'][idx_train])
+# concordance_index(samples['times'], np.exp(-1 * samples['classes']), samples['event'])
 
 
-# with open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'instance_model_sum.pkl', 'wb') as f:
-#     pickle.dump([evaluations, histories, weights], f)
+with open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'instance_model_mean.pkl', 'wb') as f:
+    pickle.dump([evaluations, histories, weights], f)

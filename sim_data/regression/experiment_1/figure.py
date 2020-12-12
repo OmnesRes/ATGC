@@ -23,17 +23,15 @@ sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd /
 # sizes = np.unique(D['sample_idx'], return_counts=True)
 # plt.hist(sizes[1], bins=100)
 # plt.show()
-# ##witness rate
-# rates = []
-# for index, i in enumerate(samples['classes']):
-#     if i == 1:
-#         variants = D['class'][np.where(D['sample_idx'] == index)]
-#         witness_rate = len(np.where(variants !=0)[0]) / len(variants)
-#         rates.append(witness_rate)
-#
-# plt.hist(rates, bins=20)
-# plt.xlim(0, 1)
-# plt.show()
+##values
+counts = []
+for index, i in enumerate(samples['classes']):
+    if i == 1:
+        variants = D['class'][np.where(D['sample_idx'] == index)]
+        counts.append(len(np.where(variants !=0)[0]))
+
+plt.scatter(counts, samples['values'])
+plt.show()
 
 
 ##plot training

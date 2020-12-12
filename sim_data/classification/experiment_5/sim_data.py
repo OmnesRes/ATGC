@@ -7,46 +7,39 @@ if path.stem == 'ATGC2':
 else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
 
-##nonlinear
 
+##random witness rate
 def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250, 300],
-                    positive_choices=None):
+                    control=True, negative_instances=False):
     center = np.random.choice(mean_variants, 1)
     total_count = int(np.random.normal(center, int(np.ceil(center * .2))))
     if total_count < 1:
         total_count *= -1
     if total_count == 0:
         total_count = np.random.choice([2, 3, 4, 5, 6], 1)
-
-    positive_count = int(np.ceil(np.random.random() * total_count))
-    control_count = total_count - positive_count * len(positive_choices)
+    if control:
+        if negative_instances:
+            indel_count = int(np.floor((np.random.random() * .1) * total_count))
+            control_count = total_count - indel_count
+        else:
+            control_count = total_count
+            indel_count = 0
+    else:
+        indel_count = int(np.ceil((np.random.random() * (.7 - .2) + .2) * total_count))
+        control_count = total_count - indel_count
 
     control_count = max(control_count, 0)
-    positive_variants = []
-    positive_instances = []
+    indel_variants = []
+    indel_instances = []
 
-    control_variants = [generate_variant() for i in range(control_count)]
-    while True:
-        y = False
-        for i in control_variants:
-            if check_variant(i, positive_choices):
-                print('checked')
-                y = True
-                break
-        if y:
-            control_variants = [generate_variant() for i in range(control_count)]
-        else:
-            break
+    control_variants = [generate_variant(indel_percent=0) for i in range(control_count)]
 
-    for index, i in enumerate(positive_choices):
-        for ii in range(positive_count):
-            positive_variants.append(i)
-            positive_instances.append(index + 1)
+    for i in range(indel_count):
+        indel_variants.append(generate_variant(indel_percent=1))
+        indel_instances.append(1)
 
-    sample_value = np.random.normal(positive_count**2, positive_count**2 / 10)
-    if sample_value < 0:
-        sample_value *= -1
-    return [control_variants + positive_variants, [0] * len(control_variants) + positive_instances, sample_value]
+    return [control_variants + indel_variants, [0] * len(control_variants) + indel_instances]
+
 
 ##dictionary for instance level data
 instances = {'sample_idx': [],
@@ -61,14 +54,17 @@ instances = {'sample_idx': [],
                   'class': []}
 
 ##how many different variants you want to label a positive sample
-positive_choices = [generate_variant() for i in range(1)]
 
-samples = {'classes': [], 'values':[]}
+samples = {'classes': []}
 
 for idx in range(1000):
-    variants = generate_sample(positive_choices=positive_choices)
-    samples['classes'] = samples['classes'] + [1]
-    samples['values'] = samples['values'] + [variants[2]]
+    ##what percent of samples are control
+    if np.random.sample() < .5:
+        variants = generate_sample(negative_instances=True)
+        samples['classes'] = samples['classes'] + [0]
+    else:
+        variants = generate_sample(control=False)
+        samples['classes'] = samples['classes'] + [1]
     instances['sample_idx'] = instances['sample_idx'] + [idx] * len(variants[0])
     instances['seq_5p'] = instances['seq_5p'] + [i[0] for i in variants[0]]
     instances['seq_3p'] = instances['seq_3p'] + [i[1] for i in variants[0]]
@@ -103,6 +99,9 @@ t[i] = variant_encoding[instances['seq_alt'][:, ::-1]][i[:, ::-1]]
 instances['seq_alt'] = np.stack([instances['seq_alt'], t], axis=2)
 del i, t
 
-with open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'sim_data.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'classification' / 'experiment_5' / 'sim_data.pkl', 'wb') as f:
     pickle.dump([instances, samples, ], f)
+
+
+
 

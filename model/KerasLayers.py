@@ -1,4 +1,56 @@
 import tensorflow as tf
+import numpy as np
+
+
+class Embed(tf.keras.layers.Layer):
+    def __init__(self, embedding_dimension, trainable=False, triangular=False):
+        super(Embed, self).__init__()
+        self.embedding_dimension = embedding_dimension
+        self.trainable = trainable
+        self.triangular = triangular
+        self.embedding_matrix = None
+        self.embedding_matrix_padded = None
+
+    def build(self, input_shape):
+        if self.triangular:
+            self.embedding_matrix = self.add_weight(shape=[self.embedding_dimension, self.embedding_dimension], initializer=tf.constant_initializer(value=np.tri(self.embedding_dimension)), trainable=self.trainable, dtype=tf.float32)
+        else:
+            self.embedding_matrix = self.add_weight(shape=[self.embedding_dimension, self.embedding_dimension], initializer=tf.keras.initializers.identity(), trainable=self.trainable, dtype=tf.float32)
+        self.embedding_matrix_padded = tf.concat([tf.zeros([1, self.embedding_dimension]), self.embedding_matrix], axis=0)
+
+    def call(self, inputs, **kwargs):
+        return tf.gather(self.embedding_matrix_padded, inputs, axis=0)
+
+
+
+
+
+class ActivationFunctions:
+
+    @staticmethod
+    def aisru(x, lower_asymptote, upper_asymptote, lower_alpha, upper_alpha):
+        x_2 = x ** 2
+        lower_sqrt = (lower_alpha + x_2) ** (1 / 2)
+        upper_sqrt = (upper_alpha + x_2) ** (1 / 2)
+        return lower_asymptote + ((upper_asymptote - lower_asymptote) * ((x + lower_sqrt) / (lower_sqrt + upper_sqrt)))
+
+
+
+class StrandWeight(tf.keras.layers.Layer):
+    def __init__(self, n_features, trainable=True, strand_init=0.):
+        super(StrandWeight, self).__init__()
+        self.n_features = n_features
+        self.trainable = trainable
+        self.strand_init = strand_init
+        self.strand_weight = None
+
+    def build(self, input_shape):
+        self.strand_weight = self.add_weight(shape=[self.n_features, ], initializer=tf.keras.initializers.constant(self.strand_init), dtype=tf.float32, trainable=self.trainable)
+
+    def call(self, inputs, **kwargs):
+        return (ActivationFunctions.aisru(self.strand_weight, lower_asymptote=0., upper_asymptote=1., lower_alpha=1., upper_alpha=1.)[tf.newaxis, tf.newaxis, ...] * (inputs[..., tf.newaxis] - 1)) + 1
+
+
 
 
 

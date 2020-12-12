@@ -53,6 +53,7 @@ for i in instance_sum_histories:
 for i in sample_mean_histories:
     ax.plot(i['val_categorical_crossentropy'][:-50], color='#ff7f0e', label='S Mean')
 for i in sample_sum_histories:
+    print(len(i['val_categorical_crossentropy']))
     ax.plot(i['val_categorical_crossentropy'][:-50], color='#ff7f0e', linestyle='--', label='S Sum')
 plt.legend()
 ax.set_yscale('log')

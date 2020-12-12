@@ -21,7 +21,7 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
         control_count = total_count
         indel_count = 0
     else:
-        indel_count = int(np.ceil(np.random.random() * total_count))
+        indel_count = int(np.ceil((np.random.random() * (.5 - .1) + .1) * total_count))
         control_count = total_count - indel_count
 
     control_count = max(control_count, 0)

@@ -160,21 +160,21 @@ control_data = generate_times(n=sum(samples['classes'] == 0), risk=0)
 positive_data = generate_times(n=sum(samples['classes'] == 1), risk=2)
 
 samples['times'] = []
-samples['censor'] = []
+samples['event'] = []
 control_count = 0
 positive_count = 0
 for i in samples['classes']:
     if i == 0:
         samples['times'].append(control_data[0][control_count])
-        samples['censor'].append(control_data[1][control_count])
+        samples['event'].append(control_data[1][control_count])
         control_count += 1
     else:
         samples['times'].append(positive_data[0][positive_count])
-        samples['censor'].append(positive_data[1][positive_count])
+        samples['event'].append(positive_data[1][positive_count])
         positive_count += 1
 
 samples['times'] = np.array(samples['times'])
-samples['censor'] = np.array(samples['censor'])
+samples['event'] = np.array(samples['event'])
 
 
 ##plotting
@@ -195,7 +195,7 @@ samples['censor'] = np.array(samples['censor'])
 #
 
 # ##lifelines
-concordance_index(samples['times'], np.exp(-1 * samples['classes']), samples['censor'])
+concordance_index(samples['times'], np.exp(-1 * samples['classes']), samples['event'])
 
 with open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sim_data.pkl', 'wb') as f:
     pickle.dump([instances, samples, ], f)
