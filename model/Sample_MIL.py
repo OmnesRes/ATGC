@@ -91,6 +91,18 @@ class SampleModels:
             input = tf.keras.layers.Input(self.shape, dtype=tf.float32)
             self.model = tf.keras.Model(inputs=[input], outputs=[input])
 
+    class Type:
+        def __init__(self, shape=None, dim=None):
+            self.shape = shape
+            self.dim = dim
+            self.model = None
+            self.build()
+
+        def build(self, *args, **kwarg):
+            input = tf.keras.layers.Input(self.shape, dtype=tf.int32)
+            type_emb = Embed(embedding_dimension=self.dim, trainable=False)
+            self.model = tf.keras.Model(inputs=[input], outputs=[type_emb(input)])
+
     class HLA:
         def __init__(self, filters=8, latent_dim=4, fusion_dimension=64, default_activation=tf.keras.activations.relu):
             self.default_activation = default_activation
@@ -126,7 +138,7 @@ class RaggedModels:
 
     class MIL:
         def __init__(self, instance_encoders=[], sample_encoders=[], instance_layers=[], sample_layers=[], pooled_layers=[], output_dim=1, output_type='classification', mode='attention', pooling='sum', regularization=.2):
-            self.instance_encoders, self.sample_encoders, self.instance_layers, self.sample_layers, self.pooled_layers, self.output_dim, self.output_type, self.mode, self.pooling, self.regularization, = instance_encoders, sample_encoders, instance_layers, sample_layers, pooled_layers, output_dim, output_type, mode, pooling, regularization
+            self.instance_encoders, self.sample_encoders, self.instance_layers, self.sample_layers, self.pooled_layers, self.output_dim, self.output_type, self.mode, self.pooling, self.regularization = instance_encoders, sample_encoders, instance_layers, sample_layers, pooled_layers, output_dim, output_type, mode, pooling, regularization
             self.model, self.attention_model = None, None
             self.build()
 
@@ -142,6 +154,7 @@ class RaggedModels:
                 ragged_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=2))(ragged_encodings)
 
                 ragged_hidden = [ragged_fused]
+
                 for i in self.instance_layers:
                     ragged_hidden.append(Ragged.MapFlatValues(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu))(ragged_hidden[-1]))
 
@@ -158,11 +171,13 @@ class RaggedModels:
                 for i in self.pooled_layers:
                     pooled_hidden.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(pooled_hidden[-1]))
 
+
             ##sample level model encodings
             sample_inputs = [[tf.keras.layers.Input(shape=input_tensor.shape[1:], dtype=input_tensor.dtype) for input_tensor in encoder.inputs] for encoder in self.sample_encoders]
             if self.sample_encoders != []:
                 sample_encodings = [encoder(sample_input) for sample_input, encoder in zip(sample_inputs, self.sample_encoders)]
                 sample_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=-1))(sample_encodings)
+
                 if self.instance_encoders != []:
                     fused = [tf.concat([pooled_hidden[-1], sample_fused], axis=-1)]
                 else:
@@ -190,7 +205,7 @@ class RaggedModels:
                 output_tensor = tf.math.log(tf.keras.activations.softplus(tf.concat([point_estimate[-1] - lower_bound[-1], point_estimate[-1], point_estimate[-1] + upper_bound[-1]], axis=1)) + 1)
 
             elif self.output_type == 'survival':
-                output_layers = (4, 1)
+                output_layers = (8, 4, 1)
                 pred = list()
                 for i in range(len(output_layers)):
                     pred.append(tf.keras.layers.Dense(units=output_layers[i], activation=None if i == (len(output_layers) - 1) else tf.keras.activations.relu)(fused if i == 0 else pred[-1]))

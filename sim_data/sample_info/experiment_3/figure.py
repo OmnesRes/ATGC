@@ -11,12 +11,10 @@ else:
     import sys
     sys.path.append(str(cwd))
 
-D, samples = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_3' / 'sim_data.pkl', 'rb'))
 
-instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'instance_model_sum.pkl', 'rb'))
-instance_mean_evaluations, instance_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'instance_model_mean.pkl', 'rb'))
-sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'sample_model_sum.pkl', 'rb'))
-sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'sample_model_mean.pkl', 'rb'))
+sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_3' / 'sample_model_sum_after.pkl', 'rb'))
+# sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_1' / 'sample_model_mean.pkl', 'rb'))
 
 
 ##sample characteristics
@@ -24,14 +22,13 @@ sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd /
 # plt.hist(sizes[1], bins=100)
 # plt.show()
 ##values
-counts = []
-for index, i in enumerate(samples['classes']):
-    print(index)
-    if i == 1:
-        variants = D['class'][np.where(D['sample_idx'] == index)]
-        counts.append(len(np.where(variants != 0)[0]))
 
-plt.scatter(counts, samples['values'])
+for i in range(1, 11):
+    counts = []
+    for index in np.where(np.array(samples['type']) == i)[0]:
+        variants = D['class'][np.where(D['sample_idx'] == index)]
+        counts.append(len(np.where(variants !=0)[0]))
+    plt.scatter(counts, np.array(samples['values'])[np.array(samples['type']) == i])
 plt.show()
 
 

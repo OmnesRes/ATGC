@@ -22,12 +22,12 @@ else:
     import sys
     sys.path.append(str(cwd))
 
-D, samples = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sim_data.pkl', 'rb'))
 
-# instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'instance_model_sum.pkl', 'rb'))
-instance_mean_evaluations, instance_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'instance_model_mean.pkl', 'rb'))
-# sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sample_model_sum.pkl', 'rb'))
-# sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sample_model_mean.pkl', 'rb'))
+instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'instance_model_sum.pkl', 'rb'))
+# instance_mean_evaluations, instance_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'instance_model_mean.pkl', 'rb'))
+# sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_sum.pkl', 'rb'))
+# sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_mean.pkl', 'rb'))
 
 import tensorflow as tf
 from model.Instance_MIL import InstanceModels, RaggedModels
@@ -80,7 +80,7 @@ cancer_test_expectation_ranks = {}
 for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_strat, y_strat)):
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='mean', output_type='other')
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other')
     mil.model.set_weights(weights[index])
     y_pred_all = mil.model.predict(ds_all)
     ##get ranks per cancer
