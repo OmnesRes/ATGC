@@ -1,7 +1,7 @@
 *.idea
 *.svg
 *.pdf
-
+*.pkl
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
