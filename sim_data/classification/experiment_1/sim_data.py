@@ -7,8 +7,10 @@ if path.stem == 'ATGC2':
 else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
 
+
+##random witness rate
 def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250, 300],
-                    mean_positive=None, num_positive=None, control=True, positive_choices=None, negative_instances=False):
+                    control=True, positive_choices=None, negative_instances=False):
     if negative_instances and len(positive_choices) <= 1:
         raise ValueError
     center = np.random.choice(mean_variants, 1)
@@ -19,20 +21,14 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
         total_count = np.random.choice([2, 3, 4, 5, 6], 1)
     if control:
         if negative_instances:
-            if num_positive:
-                positive_count = num_positive
-            else:
-                positive_count = int(np.ceil(mean_positive * total_count))
+            positive_count = int(np.ceil(np.random.random() * total_count))
             control_count = total_count - positive_count
         else:
             control_count = total_count
             positive_count = 0
     else:
-        if num_positive:
-            positive_count = num_positive
-        else:
-            positive_count = int(np.ceil(mean_positive * total_count))
-        control_count = total_count - positive_count * len(positive_choices)
+        positive_counts = [int(np.ceil(np.random.random() / len(positive_choices) * total_count)) for i in positive_choices]
+        control_count = total_count - sum(positive_counts)
 
     control_count = max(control_count, 0)
     positive_variants = []
@@ -63,11 +59,12 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
 
     else:
         for index, i in enumerate(positive_choices):
-            for ii in range(positive_count):
+            for ii in range(positive_counts[index]):
                 positive_variants.append(i)
                 positive_instances.append(index + 1)
 
     return [control_variants + positive_variants, [0] * len(control_variants) + positive_instances]
+
 
 ##dictionary for instance level data
 instances = {'sample_idx': [],
@@ -81,10 +78,8 @@ instances = {'sample_idx': [],
                   'cds': [],
                   'class': []}
 
-
 ##how many different variants you want to label a positive sample
 positive_choices = [generate_variant() for i in range(1)]
-
 
 samples = {'classes': []}
 
@@ -94,7 +89,7 @@ for idx in range(1000):
         variants = generate_sample(positive_choices=positive_choices)
         samples['classes'] = samples['classes'] + [0]
     else:
-        variants = generate_sample(control=False, mean_positive=.1, positive_choices=positive_choices)
+        variants = generate_sample(control=False, positive_choices=positive_choices)
         samples['classes'] = samples['classes'] + [1]
     instances['sample_idx'] = instances['sample_idx'] + [idx] * len(variants[0])
     instances['seq_5p'] = instances['seq_5p'] + [i[0] for i in variants[0]]

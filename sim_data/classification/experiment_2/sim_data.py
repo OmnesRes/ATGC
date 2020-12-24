@@ -7,7 +7,6 @@ if path.stem == 'ATGC2':
 else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
 
-
 ##random witness rate
 def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250, 300],
                     control=True, positive_choices=None, negative_instances=False):
@@ -79,14 +78,14 @@ instances = {'sample_idx': [],
                   'class': []}
 
 ##how many different variants you want to label a positive sample
-positive_choices = [generate_variant() for i in range(1)]
+positive_choices = [generate_variant() for i in range(2)]
 
 samples = {'classes': []}
 
 for idx in range(1000):
     ##what percent of samples are control
     if np.random.sample() < .5:
-        variants = generate_sample(positive_choices=positive_choices)
+        variants = generate_sample(negative_instances=True, positive_choices=positive_choices)
         samples['classes'] = samples['classes'] + [0]
     else:
         variants = generate_sample(control=False, positive_choices=positive_choices)

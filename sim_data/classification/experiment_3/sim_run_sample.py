@@ -5,8 +5,8 @@ from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[3], True)
-tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[4], True)
+tf.config.experimental.set_visible_devices(physical_devices[4], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
@@ -44,7 +44,6 @@ y_strat = np.argmax(y_label, axis=-1)
 idx_train, idx_test = next(StratifiedShuffleSplit(random_state=0, n_splits=1, test_size=200).split(y_strat, y_strat))
 idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
-
 ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_strat[idx_train]))
 ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=100, ds_size=len(idx_train)))
 ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
@@ -73,7 +72,6 @@ ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        y))
 
 
-
 histories = []
 evaluations = []
 weights = []
@@ -85,13 +83,15 @@ for i in range(3):
                       metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],
                       optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
                     ))
-    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=25, mode='min', restore_best_weights=True)]
+    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=50, mode='min', restore_best_weights=True)]
     history = mil.model.fit(ds_train, steps_per_epoch=10, validation_data=ds_valid, epochs=10000, callbacks=callbacks)
     evaluation = mil.model.evaluate(ds_test)
     histories.append(history.history)
     evaluations.append(evaluation)
     weights.append(mil.model.get_weights())
+    del mil
 
 
 # with open(cwd / 'sim_data' / 'classification' / 'experiment_3' / 'sample_model_sum.pkl', 'wb') as f:
 #     pickle.dump([evaluations, histories, weights], f)
+

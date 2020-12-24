@@ -20,47 +20,50 @@ sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd /
 
 losses = np.array([i[-1] for i in instance_sum_evaluations + instance_mean_evaluations + sample_sum_evaluations + sample_mean_evaluations])
 losses = losses / max(losses)
-first_loss = losses[np.arange(0, len(losses), 3)]
-second_loss = losses[np.arange(1, len(losses), 3)]
-third_loss = losses[np.arange(2, len(losses), 3)]
 
-epochs = np.array([len(i['val_categorical_crossentropy']) - 20 for i in instance_sum_histories + instance_mean_histories + sample_sum_histories + sample_mean_histories])
+epochs = np.array([len(i['val_categorical_crossentropy']) - 40 for i in instance_sum_histories + instance_mean_histories]
+                  + [len(i['val_categorical_crossentropy']) - 20 for i in sample_sum_histories + sample_mean_histories])
 epochs = epochs / max(epochs)
-first_epoch = epochs[np.arange(0, len(epochs), 3)]
-second_epoch = epochs[np.arange(1, len(epochs), 3)]
-third_epoch = epochs[np.arange(2, len(epochs), 3)]
 
-colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
 
-spacer = np.ones_like(first_loss)/20
-# centers = np.concatenate([np.arange(3) + i * 4 for i in range(4)])
+colors = ['#1f77b4'] * 3 + ['#ff7f0e'] * 3 + ['#2ca02c'] * 3 + ['#d62728'] * 3
+
+spacer = np.ones_like(losses)/25
+centers = np.concatenate([np.arange(3) + i * 3.2 for i in range(4)])
 fig = plt.figure()
 ax = fig.add_subplot(111)
 fig.subplots_adjust(
 top=1.0,
 bottom=0.0,
-left=0.0605,
-right=0.995,
+left=0.05,
+right=0.945,
 hspace=0.2,
 wspace=0.2)
+ax.bar(centers, losses, edgecolor='k', bottom=spacer, color=colors, align='center', linewidth=.5, width=1)
 
-ax.bar(list(range(4)), first_loss, edgecolor='k', bottom=spacer, color=colors, align='center', linewidth=.5, width=1)
-ax.bar(list(range(4)), second_loss, bottom=first_loss + spacer, edgecolor='k', color=colors, align='center', linewidth=.5, width=1)
-ax.bar(list(range(4)), third_loss, bottom=first_loss + second_loss + spacer, edgecolor='k', color=colors, align='center', linewidth=.5, width=1)
-
-ax.bar(list(range(4)), -first_epoch, edgecolor='k', color=colors, align='center', linewidth=.5, width=1)
-ax.bar(list(range(4)), -second_epoch, bottom=-first_epoch, edgecolor='k', color=colors, align='center', linewidth=.5, width=1)
-ax.bar(list(range(4)), -third_epoch, bottom=-first_epoch - second_epoch, edgecolor='k', color=colors, align='center', linewidth=.5, width=1)
-
-ax.set_xlim(-.503, 3.503)
-ax.set_ylim(-max(first_epoch + second_epoch + third_epoch) - .003, max(first_loss + second_loss + third_loss + spacer) + .003)
+ax.set_xlim(min(centers) - .503, max(centers) + .503)
+ax.set_ylim(-max(epochs) - .003, max(losses + spacer) + .003)
 ax.set_yticks([])
 ax.set_xticks([])
-ax.set_ylabel(' Epochs' + ' ' * 12 + 'Losses', fontsize=24)
+
+
+ax2 = ax.twinx()
+ax2.bar(centers, -epochs, edgecolor='k', color=colors, align='center', linewidth=.5, width=1)
+ax2.set_ylim(-max(epochs) - .003, max(losses + spacer) + .003)
+ax2.set_xlim(min(centers) - .503, max(centers) + .503)
+ax2.set_yticks([])
+ax2.set_xticks([])
+
+ax.set_ylabel(' ' * 19 + 'Losses', fontsize=24, labelpad=0)
+ax2.set_ylabel(' ' * 19 + 'Epochs', rotation=-90, fontsize=24, labelpad=25)
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
 ax.spines['left'].set_visible(False)
 ax.spines['bottom'].set_visible(False)
-
+ax2.spines['top'].set_visible(False)
+ax2.spines['right'].set_visible(False)
+ax2.spines['left'].set_visible(False)
+ax2.spines['bottom'].set_visible(False)
 plt.savefig(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'figure.pdf')
+
 

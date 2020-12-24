@@ -71,6 +71,7 @@ ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True)),
                                        y))
 
+
 histories = []
 evaluations = []
 weights = []
@@ -82,7 +83,7 @@ for i in range(3):
                       metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],
                       optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
                     ))
-    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=20, mode='min', restore_best_weights=True)]
+    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=40, mode='min', restore_best_weights=True)]
     history = mil.model.fit(ds_train, steps_per_epoch=10, validation_data=ds_valid, epochs=10000, callbacks=callbacks)
     evaluation = mil.model.evaluate(ds_test)
     histories.append(history.history)
