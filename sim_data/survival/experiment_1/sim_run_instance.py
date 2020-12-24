@@ -127,9 +127,6 @@ ranks = np.concatenate(cancer_test_ranks['NA'])
 concordance_index(samples['times'][indexes], ranks, samples['event'][indexes])
 
 
-
-
-
 # tfds_train = tfds_train.batch(len(idx_train), drop_remainder=True)
 
 # predictions = mil.model.predict(tfds_train)

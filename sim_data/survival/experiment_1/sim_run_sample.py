@@ -67,8 +67,10 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
     ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_strat[idx_train]))
+    # ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train]))
     ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=250, ds_size=len(idx_train)))
-    ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
+    # ds_train = ds_train.batch(len(idx_train), drop_remainder=False)
+    ds_train = ds_train.repeat().map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                            three_p_loader(x, ragged_output=True),
                                            ref_loader(x, ragged_output=True),
                                            alt_loader(x, ragged_output=True),

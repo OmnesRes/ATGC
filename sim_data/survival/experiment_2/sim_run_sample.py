@@ -6,8 +6,8 @@ from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 from lifelines.utils import concordance_index
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[4], True)
-tf.config.experimental.set_visible_devices(physical_devices[4], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[3], True)
+tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
@@ -63,14 +63,15 @@ cancer_test_ranks = {}
 cancer_test_indexes = {}
 cancer_test_expectation_ranks = {}
 
-for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_strat, y_strat):
+for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_strat, y_strat)):
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
     ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_strat[idx_train]))
     # ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train]))
+
     ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=250, ds_size=len(idx_train)))
     # ds_train = ds_train.batch(len(idx_train), drop_remainder=False)
-    ds_train = ds_train.repeat().map(lambda x, y: ((five_p_loader(x, ragged_output=True),
+    ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                            three_p_loader(x, ragged_output=True),
                                            ref_loader(x, ragged_output=True),
                                            alt_loader(x, ragged_output=True),
@@ -96,22 +97,24 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
                                         y))
     X = False
     while X == False:
+        print(index)
         try:
             tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-            mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other')
+            mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='mean', output_type='other', pooled_layers=[128, 64])
             losses = [RaggedModels.losses.CoxPH()]
             mil.model.compile(loss=losses,
                               metrics=[RaggedModels.losses.CoxPH()],
                               optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
                             ))
-            callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_coxph', min_delta=0.0001, patience=10, mode='min', restore_best_weights=True)]
+            callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_coxph', min_delta=0.0001, patience=20, mode='min', restore_best_weights=True)]
             history = mil.model.fit(ds_train, steps_per_epoch=4, validation_data=ds_valid, epochs=10000, callbacks=callbacks)
-            evaluation = mil.model.evaluate(ds_test)
-            histories.append(history.history)
-            evaluations.append(evaluation)
-            weights.append(mil.model.get_weights())
             y_pred_all = mil.model.predict(ds_all)
-            X = True
+            if concordance_index(samples['times'], np.exp(-1 * y_pred_all[:, 0]), samples['event']) > .52:
+                X = True
+                evaluation = mil.model.evaluate(ds_test)
+                histories.append(history.history)
+                evaluations.append(evaluation)
+                weights.append(mil.model.get_weights())
         except:
             pass
     ##get ranks per cancer
@@ -137,5 +140,5 @@ concordance_index(samples['times'][indexes], ranks, samples['event'][indexes])
 # concordance_index(samples['times'], np.exp(-1 * samples['classes']), samples['event'])
 
 
-with open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_sum.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_mean.pkl', 'wb') as f:
     pickle.dump([evaluations, histories, weights], f)

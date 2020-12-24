@@ -113,8 +113,8 @@ samples = {'classes': []}
 
 for idx in range(1000):
     ##what percent of samples are control
-    choice = np.random.choice([0, 1, 2, 3, 4])
-    variants = generate_sample(control=False, num_positive=choice * 10, positive_choices=positive_choices)
+    choice = np.random.choice([0, 1, 2])
+    variants = generate_sample(control=False, num_positive=choice * 10 + 10, positive_choices=positive_choices)
     samples['classes'] = samples['classes'] + [choice]
     instances['sample_idx'] = instances['sample_idx'] + [idx] * len(variants[0])
     instances['seq_5p'] = instances['seq_5p'] + [i[0] for i in variants[0]]
@@ -154,10 +154,10 @@ del i, t
 
 ##generate times
 zero_data = generate_times(n=sum(samples['classes'] == 0),  risk=0)
-one_data = generate_times(n=sum(samples['classes'] == 1),  risk=.5)
-two_data = generate_times(n=sum(samples['classes'] == 2),  risk=1)
-three_data = generate_times(n=sum(samples['classes'] == 3),  risk=1.5)
-four_data = generate_times(n=sum(samples['classes'] == 4),  risk=2)
+one_data = generate_times(n=sum(samples['classes'] == 1),  risk=2)
+two_data = generate_times(n=sum(samples['classes'] == 2),  risk=-2)
+# three_data = generate_times(n=sum(samples['classes'] == 3),  risk=1.5)
+# four_data = generate_times(n=sum(samples['classes'] == 4),  risk=2)
 
 
 samples['times'] = []
@@ -182,15 +182,16 @@ for i in samples['classes']:
         samples['times'].append(two_data[0][two_count])
         samples['event'].append(two_data[1][two_count])
         two_count += 1
-    elif i == 3:
-        samples['times'].append(three_data[0][three_count])
-        samples['event'].append(three_data[1][three_count])
-        three_count += 1
+    # elif i == 3:
+    #     samples['times'].append(three_data[0][three_count])
+    #     samples['event'].append(three_data[1][three_count])
+    #     three_count += 1
+    # else:
+    #     samples['times'].append(four_data[0][four_count])
+    #     samples['event'].append(four_data[1][four_count])
+    #     four_count += 1
     else:
-        samples['times'].append(four_data[0][four_count])
-        samples['event'].append(four_data[1][four_count])
-        four_count += 1
-
+        pass
 samples['times'] = np.array(samples['times'])
 samples['event'] = np.array(samples['event'])
 
@@ -211,22 +212,25 @@ kmf_two = KaplanMeierFitter()
 kmf_two.fit(two_data[0], two_data[1])
 kmf_two.plot(show_censors=True, ci_show=False, ax=ax, label='two')
 
-kmf_three = KaplanMeierFitter()
-kmf_three.fit(three_data[0], three_data[1])
-kmf_three.plot(show_censors=True, ci_show=False, ax=ax, label='three')
-
-kmf_four = KaplanMeierFitter()
-kmf_four.fit(four_data[0], four_data[1])
-kmf_four.plot(show_censors=True, ci_show=False, ax=ax, label='four')
+# kmf_three = KaplanMeierFitter()
+# kmf_three.fit(three_data[0], three_data[1])
+# kmf_three.plot(show_censors=True, ci_show=False, ax=ax, label='three')
+#
+# kmf_four = KaplanMeierFitter()
+# kmf_four.fit(four_data[0], four_data[1])
+# kmf_four.plot(show_censors=True, ci_show=False, ax=ax, label='four')
 plt.legend()
 plt.show()
 
 
 
 # ##lifelines
-concordance_index(samples['times'], np.exp(-1 * samples['classes']), samples['event'])
+risk_dict = {}
+concordance_index(samples['times'], np.exp(-1 * ((samples['classes'] - 2) * -1)), samples['event'])
 
-with open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sim_data.pkl', 'wb') as f:
+
+
+with open(cwd / 'sim_data' / 'survival' / 'experiment_3' / 'sim_data.pkl', 'wb') as f:
     pickle.dump([instances, samples, ], f)
 
 ##cox regression

@@ -14,6 +14,7 @@ else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
 
 
+
 def generate_times(n=200, mean_time=365, risk=0):
     risk_score = np.full((n), risk)
     baseline_hazard = 1 / mean_time
@@ -51,7 +52,7 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
             control_count = total_count
             positive_count = 0
     else:
-        if num_positive:
+        if num_positive != None:
             positive_count = num_positive
         else:
             positive_count = int(np.ceil(mean_positive * total_count))
@@ -62,18 +63,17 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
     positive_instances = []
 
     control_variants = [generate_variant() for i in range(control_count)]
-    if control:
-        while True:
-            y = False
-            for i in control_variants:
-                if check_variant(i, positive_choices):
-                    print('checked')
-                    y = True
-                    break
-            if y:
-                control_variants = [generate_variant() for i in range(control_count)]
-            else:
+    while True:
+        y = False
+        for i in control_variants:
+            if check_variant(i, positive_choices):
+                print('checked')
+                y = True
                 break
+        if y:
+            control_variants = [generate_variant() for i in range(control_count)]
+        else:
+            break
 
     if control:
         if negative_instances:
@@ -113,12 +113,9 @@ samples = {'classes': []}
 
 for idx in range(1000):
     ##what percent of samples are control
-    if np.random.sample() < .5:
-        variants = generate_sample(positive_choices=positive_choices)
-        samples['classes'] = samples['classes'] + [0]
-    else:
-        variants = generate_sample(control=False, mean_positive=.1, positive_choices=positive_choices)
-        samples['classes'] = samples['classes'] + [1]
+    choice = np.random.choice([0, 1, 2, 3, 4])
+    variants = generate_sample(control=False, num_positive=choice * 10, positive_choices=positive_choices)
+    samples['classes'] = samples['classes'] + [choice]
     instances['sample_idx'] = instances['sample_idx'] + [idx] * len(variants[0])
     instances['seq_5p'] = instances['seq_5p'] + [i[0] for i in variants[0]]
     instances['seq_3p'] = instances['seq_3p'] + [i[1] for i in variants[0]]
@@ -156,49 +153,80 @@ instances['seq_alt'] = np.stack([instances['seq_alt'], t], axis=2)
 del i, t
 
 ##generate times
-control_data = generate_times(n=sum(samples['classes'] == 0), risk=0)
-positive_data = generate_times(n=sum(samples['classes'] == 1), risk=2)
+zero_data = generate_times(n=sum(samples['classes'] == 0),  risk=0)
+one_data = generate_times(n=sum(samples['classes'] == 1),  risk=.5)
+two_data = generate_times(n=sum(samples['classes'] == 2),  risk=1)
+three_data = generate_times(n=sum(samples['classes'] == 3),  risk=1.5)
+four_data = generate_times(n=sum(samples['classes'] == 4),  risk=2)
+
 
 samples['times'] = []
 samples['event'] = []
-control_count = 0
-positive_count = 0
+zero_count = 0
+one_count = 0
+two_count = 0
+three_count = 0
+four_count = 0
+
+
 for i in samples['classes']:
     if i == 0:
-        samples['times'].append(control_data[0][control_count])
-        samples['event'].append(control_data[1][control_count])
-        control_count += 1
+        samples['times'].append(zero_data[0][zero_count])
+        samples['event'].append(zero_data[1][zero_count])
+        zero_count += 1
+    elif i == 1:
+        samples['times'].append(one_data[0][one_count])
+        samples['event'].append(one_data[1][one_count])
+        one_count += 1
+    elif i ==2:
+        samples['times'].append(two_data[0][two_count])
+        samples['event'].append(two_data[1][two_count])
+        two_count += 1
+    elif i == 3:
+        samples['times'].append(three_data[0][three_count])
+        samples['event'].append(three_data[1][three_count])
+        three_count += 1
     else:
-        samples['times'].append(positive_data[0][positive_count])
-        samples['event'].append(positive_data[1][positive_count])
-        positive_count += 1
+        samples['times'].append(four_data[0][four_count])
+        samples['event'].append(four_data[1][four_count])
+        four_count += 1
 
 samples['times'] = np.array(samples['times'])
 samples['event'] = np.array(samples['event'])
-
 
 
 ##plotting
 fig=plt.figure()
 ax = fig.add_subplot(111)
 
-kmf_low = KaplanMeierFitter()
-kmf_low.fit(control_data[0], control_data[1])
-# kmf_low.survival_function_.plot()
-kmf_low.plot(show_censors=True, ci_show=False, ax=ax)
-#
-kmf_high = KaplanMeierFitter()
-kmf_high.fit(positive_data[0], positive_data[1])
-# # kmf_high.survival_function_.plot()
-kmf_high.plot(show_censors=True, ci_show=False, ax=ax)
-#
+kmf_zero = KaplanMeierFitter()
+kmf_zero.fit(zero_data[0], zero_data[1])
+kmf_zero.plot(show_censors=True, ci_show=False, ax=ax, label='zero')
+
+kmf_one = KaplanMeierFitter()
+kmf_one.fit(one_data[0], one_data[1])
+kmf_one.plot(show_censors=True, ci_show=False, ax=ax, label='one')
+
+kmf_two = KaplanMeierFitter()
+kmf_two.fit(two_data[0], two_data[1])
+kmf_two.plot(show_censors=True, ci_show=False, ax=ax, label='two')
+
+kmf_three = KaplanMeierFitter()
+kmf_three.fit(three_data[0], three_data[1])
+kmf_three.plot(show_censors=True, ci_show=False, ax=ax, label='three')
+
+kmf_four = KaplanMeierFitter()
+kmf_four.fit(four_data[0], four_data[1])
+kmf_four.plot(show_censors=True, ci_show=False, ax=ax, label='four')
+plt.legend()
 plt.show()
+
 
 
 # ##lifelines
 concordance_index(samples['times'], np.exp(-1 * samples['classes']), samples['event'])
 
-with open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sim_data.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sim_data.pkl', 'wb') as f:
     pickle.dump([instances, samples, ], f)
 
 ##cox regression

@@ -10,6 +10,10 @@ from sim_data.sim_data_tools import *
 import pickle
 import pathlib
 path = pathlib.Path.cwd()
+if path.stem == 'ATGC2':
+    cwd = path
+else:
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
 
 if path.stem == 'ATGC2':
     cwd = path
@@ -18,12 +22,10 @@ else:
     import sys
     sys.path.append(str(cwd))
 
-D, samples = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_3' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sim_data.pkl', 'rb'))
 
-instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_3' / 'instance_model_sum.pkl', 'rb'))
-# instance_mean_evaluations, instance_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_3' / 'instance_model_mean.pkl', 'rb'))
-# sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_3' / 'sample_model_sum.pkl', 'rb'))
-# sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_3' / 'sample_model_mean.pkl', 'rb'))
+instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'instance_model_sum.pkl', 'rb'))
+# sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sample_model_sum.pkl', 'rb'))
 
 import tensorflow as tf
 from model.Instance_MIL import InstanceModels, RaggedModels
@@ -76,12 +78,9 @@ cancer_test_expectation_ranks = {}
 for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_strat, y_strat)):
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other', pooled_layers=[128, 64])
     mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other')
-
     mil.model.set_weights(weights[index])
     y_pred_all = mil.model.predict(ds_all)
-    print(concordance_index(samples['times'], np.exp(-1 * y_pred_all[:, 0]), samples['event']))
     ##get ranks per cancer
     for index, cancer in enumerate(['NA']):
         mask = np.where(cancer_strat == index)[0]
@@ -90,41 +89,16 @@ for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random
         ranks = np.empty_like(temp)
         ranks[temp] = np.arange(len(mask))
         cancer_test_ranks[cancer] = cancer_test_ranks.get(cancer, []) + [ranks[np.isin(mask, idx_test, assume_unique=True)]]
-#
+
 indexes = np.concatenate(cancer_test_indexes['NA'])
 ranks = np.concatenate(cancer_test_ranks['NA'])
 concordance_index(samples['times'][indexes], ranks, samples['event'][indexes])
 
 
-sizes = []
-for i in range(len(samples['classes'])):
-    sizes.append(len(np.where(D['sample_idx'] == i)[0]))
-sample_df = pd.DataFrame(data={'class': samples['classes'],
-                               'predictions': y_pred_all[:, 0],
-                               'sizes': sizes})
+sample_df = pd.DataFrame(data={'class': samples['classes'][idx_test],
+                               'predictions': y_pred_all[:, 0][idx_test],
+                               })
 
-sns.swarmplot(x="class", y="predictions", data=sample_df)
-plt.show()
-
-# plt.scatter(sample_df.sizes.values[samples['classes'] == 4], y_pred_all[:, 0][samples['classes'] == 4])
-# plt.show()
-
-
-##need to remap classes
-risk_dict = {'0': 0, '2': -2, '1': 2}
-concordance_index(samples['times'], np.exp(-1 * np.array([risk_dict[str(i)] for i in samples['classes']])), samples['event'])
-# concordance_index(samples['times'], np.exp(-1 * y_pred_all[:, 0]), samples['event'])
-
-##lifelines
-##need a dataframe
-
-d = {'risks': samples['classes'],
-     'times': samples['times'],
-     'events': samples['event']}
-data = pd.DataFrame(data=d)
-
-
-cph = CoxPHFitter()
-cph.fit(data, 'times', 'events')
-cph.print_summary()
+with open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'instance_model_sum_eval.pkl', 'wb') as f:
+    pickle.dump([indexes, ranks, sample_df], f)
 
