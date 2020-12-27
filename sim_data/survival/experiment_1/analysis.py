@@ -24,12 +24,12 @@ else:
 
 D, samples = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sim_data.pkl', 'rb'))
 
-instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'instance_model_sum.pkl', 'rb'))
-# sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sample_model_sum.pkl', 'rb'))
+# instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'instance_model_sum.pkl', 'rb'))
+sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sample_model_sum.pkl', 'rb'))
 
 import tensorflow as tf
-from model.Instance_MIL import InstanceModels, RaggedModels
-# from model.Sample_MIL import InstanceModels, RaggedModels
+# from model.Instance_MIL import InstanceModels, RaggedModels
+from model.Sample_MIL import InstanceModels, RaggedModels
 from model import DatasetsUtils
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[4], True)
@@ -74,6 +74,7 @@ ds_all = ds_all.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
 cancer_test_ranks = {}
 cancer_test_indexes = {}
 cancer_test_expectation_ranks = {}
+sample_dfs = []
 
 for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_strat, y_strat)):
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
@@ -89,16 +90,17 @@ for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random
         ranks = np.empty_like(temp)
         ranks[temp] = np.arange(len(mask))
         cancer_test_ranks[cancer] = cancer_test_ranks.get(cancer, []) + [ranks[np.isin(mask, idx_test, assume_unique=True)]]
+    sample_df = pd.DataFrame(data={'class': samples['classes'][idx_test],
+                                   'predictions': y_pred_all[:, 0][idx_test],
+                                   })
+    sample_dfs.append(sample_df)
+
 
 indexes = np.concatenate(cancer_test_indexes['NA'])
 ranks = np.concatenate(cancer_test_ranks['NA'])
 concordance_index(samples['times'][indexes], ranks, samples['event'][indexes])
 
 
-sample_df = pd.DataFrame(data={'class': samples['classes'][idx_test],
-                               'predictions': y_pred_all[:, 0][idx_test],
-                               })
-
-with open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'instance_model_sum_eval.pkl', 'wb') as f:
-    pickle.dump([indexes, ranks, sample_df], f)
+with open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sample_model_sum_eval.pkl', 'wb') as f:
+    pickle.dump([indexes, ranks, sample_dfs], f)
 

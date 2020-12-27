@@ -23,34 +23,17 @@ class Embed(tf.keras.layers.Layer):
 
 
 
-
-
-class ActivationFunctions:
-
-    @staticmethod
-    def aisru(x, lower_asymptote, upper_asymptote, lower_alpha, upper_alpha):
-        x_2 = x ** 2
-        lower_sqrt = (lower_alpha + x_2) ** (1 / 2)
-        upper_sqrt = (upper_alpha + x_2) ** (1 / 2)
-        return lower_asymptote + ((upper_asymptote - lower_asymptote) * ((x + lower_sqrt) / (lower_sqrt + upper_sqrt)))
-
-
-
-class StrandWeight(tf.keras.layers.Layer):
-    def __init__(self, n_features, trainable=True, strand_init=0.):
-        super(StrandWeight, self).__init__()
-        self.n_features = n_features
-        self.trainable = trainable
-        self.strand_init = strand_init
-        self.strand_weight = None
-
-    def build(self, input_shape):
-        self.strand_weight = self.add_weight(shape=[self.n_features, ], initializer=tf.keras.initializers.constant(self.strand_init), dtype=tf.float32, trainable=self.trainable)
-
-    def call(self, inputs, **kwargs):
-        return (ActivationFunctions.aisru(self.strand_weight, lower_asymptote=0., upper_asymptote=1., lower_alpha=1., upper_alpha=1.)[tf.newaxis, tf.newaxis, ...] * (inputs[..., tf.newaxis] - 1)) + 1
-
-
+#
+#
+# class ActivationFunctions:
+#
+#     @staticmethod
+#     def aisru(x, lower_asymptote, upper_asymptote, lower_alpha, upper_alpha):
+#         x_2 = x ** 2
+#         lower_sqrt = (lower_alpha + x_2) ** (1 / 2)
+#         upper_sqrt = (upper_alpha + x_2) ** (1 / 2)
+#         return lower_asymptote + ((upper_asymptote - lower_asymptote) * ((x + lower_sqrt) / (lower_sqrt + upper_sqrt)))
+#
 
 
 
@@ -113,20 +96,34 @@ class Activations:
             return self.activation_function(inputs + self.bias if self.bias is not None else inputs, alpha=tf.exp(self.alpha))
 
 
-class Convolutions:
 
-    class DenselyConnectedConv2D(tf.keras.layers.Layer):
-        def __init__(self, k, filters, kernel_size):
-                super(Convolutions.DenselyConnectedConv2D, self).__init__()
-                self.k = k
-                self.convs = [tf.keras.layers.Conv2D(filters=filters, kernel_size=kernel_size, strides=1, activation=tf.keras.activations.relu, padding='same') for _ in range(k)]
+class StrandWeight(tf.keras.layers.Layer):
+    def __init__(self, n_features, trainable=True, strand_init=0.):
+        super(StrandWeight, self).__init__()
+        self.n_features = n_features
+        self.trainable = trainable
+        self.strand_init = strand_init
+        self.strand_weight = None
 
-        def call(self, input, **kwargs):
-            previous_outputs = list()
-            for op in self.convs:
-                previous_outputs.append(op(tf.concat([input] + previous_outputs, axis=-1)))
+    def build(self, input_shape):
+        self.strand_weight = self.add_weight(shape=[self.n_features, ], initializer=tf.keras.initializers.constant(self.strand_init), dtype=tf.float32, trainable=self.trainable)
 
-            return previous_outputs[-1]
+    def call(self, inputs, **kwargs):
+        return (Activations.ASU.activation_function(self.strand_weight, lower_asymptote=0., upper_asymptote=1., lower_alpha=1., upper_alpha=1.)[tf.newaxis, tf.newaxis, ...] * (inputs[..., tf.newaxis] - 1)) + 1
+
+
+class Dense:
+
+    class Gate(tf.keras.layers.Layer):
+        def __init__(self, units, activation, bias_kwargs):
+            super(Dense.Gate, self).__init__()
+            self.units, self.activation, self.bias_kwargs = units, activation, bias_kwargs
+
+        def build(self, input_shape):
+            self.bias = self.add_weight(shape=(self.units, ), dtype=tf.float32, **self.bias_kwargs)
+
+        def call(self, inputs, **kwargs):
+            return self.activation(inputs + self.bias)
 
 
 class Ragged:
@@ -139,6 +136,22 @@ class Ragged:
 
         def call(self, inputs, **kwargs):
             return tf.ragged.map_flat_values(self.op, inputs)
+
+    class Dense(tf.keras.layers.Layer):
+        def __init__(self, units, activation=None):
+            super(Ragged.Dense, self).__init__()
+            self._supports_ragged_inputs = True
+            self.units, self.activation = units, activation
+            self.ragged_layer, self.tensor_layer, self.activation_layer = None, None, None
+
+        def build(self, inputs):
+            self.ragged_layer = tf.keras.layers.Dense(units=self.units, activation=None, use_bias=False)
+            self.tensor_layer = tf.keras.layers.Dense(units=self.units, activation=None, use_bias=False)
+            self.activation_layer = Dense.Gate(units=self.units, activation=self.activation, bias_kwargs=dict(initializer=tf.keras.initializers.constant(0), trainable=True))
+
+        def call(self, inputs, **kwargs):
+            ragged_dot = tf.ragged.map_flat_values(self.ragged_layer, inputs[0]) + tf.expand_dims(self.tensor_layer(inputs[1]), inputs[0].ragged_rank)
+            return tf.ragged.map_flat_values(self.activation_layer, ragged_dot)
 
     class Attention(tf.keras.layers.Layer):
         def __init__(self, pooling='sum', regularization=.2):
@@ -166,6 +179,14 @@ class Ragged:
                                                                      tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)]), axis=1)
 
             return pooled, attention_weights
+
+
+
+
+
+
+
+
 
 
 class Losses:

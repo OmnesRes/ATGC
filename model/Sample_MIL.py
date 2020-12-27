@@ -137,13 +137,19 @@ class SampleModels:
 class RaggedModels:
 
     class MIL:
-        def __init__(self, instance_encoders=[], sample_encoders=[], instance_layers=[], sample_layers=[], pooled_layers=[], output_dim=1, output_type='classification', mode='attention', pooling='sum', regularization=.2):
-            self.instance_encoders, self.sample_encoders, self.instance_layers, self.sample_layers, self.pooled_layers, self.output_dim, self.output_type, self.mode, self.pooling, self.regularization = instance_encoders, sample_encoders, instance_layers, sample_layers, pooled_layers, output_dim, output_type, mode, pooling, regularization
+        def __init__(self, instance_encoders=[], sample_encoders=[], instance_layers=[], sample_layers=[], pooled_layers=[], output_dim=1, output_type='classification', mode='attention', pooling='sum', regularization=.2, fusion='after'):
+            self.instance_encoders, self.sample_encoders, self.instance_layers, self.sample_layers, self.pooled_layers, self.output_dim, self.output_type, self.mode, self.pooling, self.regularization, self.fusion = instance_encoders, sample_encoders, instance_layers, sample_layers, pooled_layers, output_dim, output_type, mode, pooling, regularization, fusion
             self.model, self.attention_model = None, None
             self.build()
 
         def build(self):
             ragged_inputs = [[tf.keras.layers.Input(shape=input_tensor.shape, dtype=input_tensor.dtype, ragged=True) for input_tensor in encoder.inputs] for encoder in self.instance_encoders]
+            sample_inputs = [[tf.keras.layers.Input(shape=input_tensor.shape[1:], dtype=input_tensor.dtype) for input_tensor in encoder.inputs] for encoder in self.sample_encoders]
+
+            ##sample level model encodings
+            if self.sample_encoders != []:
+                sample_encodings = [encoder(sample_input) for sample_input, encoder in zip(sample_inputs, self.sample_encoders)]
+                sample_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=-1))(sample_encodings)
 
             if self.instance_encoders != []:
                 ragged_encodings = [Ragged.MapFlatValues(encoder)(ragged_input) for ragged_input, encoder in zip(ragged_inputs, self.instance_encoders)]
@@ -153,7 +159,13 @@ class RaggedModels:
                 # based on the design of the input and graph instances can be fused prior to bag aggregation
                 ragged_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=2))(ragged_encodings)
 
-                ragged_hidden = [ragged_fused]
+                if self.sample_encoders != []:
+                    if self.fusion == 'before':
+                        ragged_hidden = [Ragged.Dense(units=64, activation=tf.keras.activations.relu)((ragged_fused, sample_fused))]
+                    else:
+                        ragged_hidden = [ragged_fused]
+                else:
+                    ragged_hidden = [ragged_fused]
 
                 for i in self.instance_layers:
                     ragged_hidden.append(Ragged.MapFlatValues(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu))(ragged_hidden[-1]))
@@ -171,23 +183,18 @@ class RaggedModels:
                 for i in self.pooled_layers:
                     pooled_hidden.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(pooled_hidden[-1]))
 
-
-            ##sample level model encodings
-            sample_inputs = [[tf.keras.layers.Input(shape=input_tensor.shape[1:], dtype=input_tensor.dtype) for input_tensor in encoder.inputs] for encoder in self.sample_encoders]
             if self.sample_encoders != []:
-                sample_encodings = [encoder(sample_input) for sample_input, encoder in zip(sample_inputs, self.sample_encoders)]
-                sample_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=-1))(sample_encodings)
+                if self.fusion == 'after':
+                    if self.instance_encoders != []:
+                        fused = [tf.concat([pooled_hidden[-1], sample_fused], axis=-1)]
+                    else:
+                        fused = [sample_fused]
 
-                if self.instance_encoders != []:
-                    fused = [tf.concat([pooled_hidden[-1], sample_fused], axis=-1)]
                 else:
-                    fused = [sample_fused]
+                    fused = [pooled_hidden[-1]]
 
-                for i in self.sample_layers:
-                    fused.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(fused[-1]))
-
-            else:
-                fused = [pooled_hidden[-1]]
+            for i in self.sample_layers:
+                fused.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(fused[-1]))
 
             fused = tf.keras.layers.Dense(units=32, activation='relu')(fused[-1])
             fused = tf.keras.layers.Dense(units=16, activation='relu')(fused)

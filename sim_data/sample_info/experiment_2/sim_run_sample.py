@@ -86,10 +86,11 @@ ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
 histories = []
 evaluations = []
 weights = []
-for i in range(3):
+for i in range(6):
     sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
     sample_encoder = SampleModels.Type(shape=(), dim=10)
-    mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], sample_layers=[64,], output_dim=1, pooling='sum', output_type='other')
+    mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], sample_layers=[64, ], output_dim=1, pooling='sum', output_type='other')
+    # mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], fusion='before', instance_layers=[64, ], output_dim=1, pooling='sum', output_type='other')
     losses = ['mse']
     mil.model.compile(loss=losses,
                       metrics=['mse'],

@@ -22,13 +22,14 @@ else:
 
 D, samples = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sim_data.pkl', 'rb'))
 
-instance_indexes, instance_ranks, instance_sample_df = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'instance_model_sum_eval.pkl', 'rb'))
-sample_indexes, sample_ranks, sample_sample_df = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sample_model_sum_eval.pkl', 'rb'))
+instance_indexes, instance_ranks, instance_sample_dfs = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'instance_model_sum_eval.pkl', 'rb'))
+sample_indexes, sample_ranks, sample_sample_dfs = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sample_model_sum_eval.pkl', 'rb'))
 
-instance_sample_df['Model'] = 'Instance'
-sample_sample_df['Model'] = 'Sample'
+for i, j in zip(instance_sample_dfs, sample_sample_dfs):
+    i['Model'] = 'Instance'
+    j['Model'] = 'Sample'
 
-sample_df = instance_sample_df.append(sample_sample_df)
+sample_df = instance_sample_dfs[4].append(sample_sample_dfs[4])
 
 
 fig = plt.figure()
@@ -39,7 +40,7 @@ left=0.045,
 right=1.0,
 hspace=0.2,
 wspace=0.2)
-ax = sns.stripplot(x="class", y="predictions", hue='Model', dodge=True, jitter=.35, data=sample_df, edgecolor='k', linewidth=1, ax=ax)
+sns.stripplot(x="class", y="predictions", hue='Model', dodge=True, jitter=.35, data=sample_df, edgecolor='k', linewidth=1, ax=ax)
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
 ax.set_yticks([])

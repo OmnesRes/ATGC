@@ -11,15 +11,15 @@ else:
     import sys
     sys.path.append(str(cwd))
 
-D, samples = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_1' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sim_data.pkl', 'rb'))
 
-sample_mean_before_evaluations, instance_mean_before_histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_1' / 'sample_model_mean_before.pkl', 'rb'))
-sample_mean_after_evaluations, instance_mean_after_histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_1' / 'sample_model_mean_after.pkl', 'rb'))
+sample_mean_before_evaluations, instance_mean_before_histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_before.pkl', 'rb'))
+sample_mean_after_evaluations, instance_mean_after_histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_after.pkl', 'rb'))
 
 losses = np.array([i[-1] for i in sample_mean_before_evaluations + sample_mean_after_evaluations])
 losses = losses / max(losses)
 
-epochs = np.array([len(i['val_categorical_crossentropy']) - 20 for i in instance_mean_before_histories + instance_mean_after_histories])
+epochs = np.array([len(i['val_mse']) - 20 for i in instance_mean_before_histories + instance_mean_after_histories])
 epochs = epochs / max(epochs)
 
 
@@ -61,6 +61,6 @@ ax2.spines['top'].set_visible(False)
 ax2.spines['right'].set_visible(False)
 ax2.spines['left'].set_visible(False)
 ax2.spines['bottom'].set_visible(False)
-plt.savefig(cwd / 'sim_data' / 'sample_info' / 'experiment_1' / 'figure.pdf')
+plt.savefig(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'figure.pdf')
 
 

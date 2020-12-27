@@ -34,15 +34,12 @@ three_p = np.array([D['seq_3p'][i] for i in indexes], dtype='object')
 ref = np.array([D['seq_ref'][i] for i in indexes], dtype='object')
 alt = np.array([D['seq_alt'][i] for i in indexes], dtype='object')
 strand = np.array([D['strand_emb'][i] for i in indexes], dtype='object')
-instance_type = np.array([np.array(samples['type'])[D['sample_idx']][:, np.newaxis][i] for i in indexes], dtype='object')
 
 five_p_loader = DatasetsUtils.Map.FromNumpy(five_p, tf.int32)
 three_p_loader = DatasetsUtils.Map.FromNumpy(three_p, tf.int32)
 ref_loader = DatasetsUtils.Map.FromNumpy(ref, tf.int32)
 alt_loader = DatasetsUtils.Map.FromNumpy(alt, tf.int32)
 strand_loader = DatasetsUtils.Map.FromNumpy(strand, tf.float32)
-type_loader = DatasetsUtils.Map.FromNumpy(instance_type, tf.float32)
-
 
 y_label = np.stack([[0, 1] if i == 1 else [1, 0] for i in samples['classes']])
 strat_dict = {key: index for index, key in enumerate(set(tuple([label, group]) for label, group in zip(samples['classes'], samples['type'])))}
@@ -60,8 +57,7 @@ ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        ref_loader(x, ragged_output=True),
                                        alt_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True),
-                                       type_loader(x, ragged_output=True)
-                                       # tf.gather(tf.constant(types), x)
+                                       tf.gather(tf.constant(types), x)
                                        ),
                                        y))
 
@@ -72,8 +68,7 @@ ds_valid = ds_valid.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        ref_loader(x, ragged_output=True),
                                        alt_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True),
-                                       type_loader(x, ragged_output=True)
-                                       # tf.gather(tf.constant(types), x)
+                                       tf.gather(tf.constant(types), x)
                                        ),
                                        y))
 
@@ -84,20 +79,17 @@ ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        ref_loader(x, ragged_output=True),
                                        alt_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True),
-                                       type_loader(x, ragged_output=True)
-                                       # tf.gather(tf.constant(types), x)
+                                       tf.gather(tf.constant(types), x)
                                        ),
                                        y))
 
 histories = []
 evaluations = []
 weights = []
-for i in range(3):
+for i in range(6):
     sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    class_encoder = InstanceModels.PassThrough(shape=(instance_type[0].shape[-1], ))
-    # sample_encoder = SampleModels.PassThrough(shape=(types.shape[-1], ))
-    mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model, class_encoder.model], output_dim=2, pooling='mean')
-    # mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], output_dim=2, pooling='mean')
+    sample_encoder = SampleModels.PassThrough(shape=(types.shape[-1], ))
+    mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], output_dim=2, pooling='mean', fusion='before')
     losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
     mil.model.compile(loss=losses,
                       metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],

@@ -39,7 +39,7 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
     for index, i in enumerate(positive_choices):
         for ii in range(positive_count):
             positive_variants.append(i)
-            positive_instances.append(factor)
+            positive_instances.append(index + 1)
 
     sample_value = np.random.normal(positive_count * factor, positive_count / 10)
     if sample_value < 0:
@@ -68,8 +68,8 @@ samples = {'values': [],
 
 for idx in range(1000):
     ##what percent of samples are control
-    type = np.random.choice(range(1, 11))
-    variants = generate_sample(positive_choices=positive_choices, factor=type)
+    type = np.random.choice(range(1, 4))
+    variants = generate_sample(positive_choices=positive_choices, factor=type * 5)
     samples['type'] = samples['type'] + [type]
     samples['values'] = samples['values'] + [variants[2]]
     instances['sample_idx'] = instances['sample_idx'] + [idx] * len(variants[0])

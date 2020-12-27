@@ -20,6 +20,9 @@ else:
 ##load the instance and sample data
 D, samples = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sim_data.pkl', 'rb'))
 
+types = np.array(samples['type'])
+
+
 ##perform embeddings with a zero vector for index 0
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
 D['strand_emb'] = strand_emb_mat[D['strand']]
@@ -31,14 +34,12 @@ three_p = np.array([D['seq_3p'][i] for i in indexes], dtype='object')
 ref = np.array([D['seq_ref'][i] for i in indexes], dtype='object')
 alt = np.array([D['seq_alt'][i] for i in indexes], dtype='object')
 strand = np.array([D['strand_emb'][i] for i in indexes], dtype='object')
-instance_type = np.array([np.array(samples['type'])[D['sample_idx']][i] for i in indexes], dtype='object')
 
 five_p_loader = DatasetsUtils.Map.FromNumpy(five_p, tf.int32)
 three_p_loader = DatasetsUtils.Map.FromNumpy(three_p, tf.int32)
 ref_loader = DatasetsUtils.Map.FromNumpy(ref, tf.int32)
 alt_loader = DatasetsUtils.Map.FromNumpy(alt, tf.int32)
 strand_loader = DatasetsUtils.Map.FromNumpy(strand, tf.float32)
-type_loader = DatasetsUtils.Map.FromNumpy(instance_type, tf.int32)
 
 
 y_label = np.log(np.array(samples['values']) + 1)[:, np.newaxis]
@@ -56,7 +57,7 @@ ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        ref_loader(x, ragged_output=True),
                                        alt_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True),
-                                       type_loader(x, ragged_output=True)
+                                       tf.gather(tf.constant(types), x)
                                        ),
                                        y))
 
@@ -67,7 +68,7 @@ ds_valid = ds_valid.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        ref_loader(x, ragged_output=True),
                                        alt_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True),
-                                       type_loader(x, ragged_output=True)
+                                       tf.gather(tf.constant(types), x)
                                        ),
                                        y))
 
@@ -78,29 +79,26 @@ ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        ref_loader(x, ragged_output=True),
                                        alt_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True),
-                                       type_loader(x, ragged_output=True)
+                                       tf.gather(tf.constant(types), x)
                                        ),
                                        y))
 
-histories = []
-evaluations = []
-weights = []
-for i in range(3):
-    sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    class_encoder = SampleModels.Type(shape=(), dim=10)
-    mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model, class_encoder.model], instance_layers=[64,], output_dim=1, pooling='sum', output_type='other')
-    losses = ['mse']
-    mil.model.compile(loss=losses,
-                      metrics=['mse'],
-                      optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
-                    ))
-    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_mse', min_delta=0.001, patience=20, mode='min', restore_best_weights=True)]
-    history = mil.model.fit(ds_train, steps_per_epoch=10, validation_data=ds_valid, epochs=10000, callbacks=callbacks)
-    evaluation = mil.model.evaluate(ds_test)
-    histories.append(history.history)
-    evaluations.append(evaluation)
-    weights.append(mil.model.get_weights())
+evaluations, histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_before.pkl', 'rb'))
+# evaluations, histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_after.pkl', 'rb'))
 
 
-# with open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_before.pkl', 'wb') as f:
-#     pickle.dump([evaluations, histories, weights], f)
+sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
+class_encoder = SampleModels.Type(shape=(), dim=10)
+sample_encoder = SampleModels.Type(shape=(), dim=10)
+
+mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], fusion='before', instance_layers=[64, ], output_dim=1, pooling='sum', output_type='other')
+# mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], sample_layers=[64, ], output_dim=1, pooling='sum', output_type='other')
+
+
+attentions = []
+for i in weights:
+    mil.model.set_weights(i)
+    attentions.append(mil.attention_model.predict(ds_test).to_list())
+
+with open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_before_attention.pkl', 'wb') as f:
+    pickle.dump([idx_test, attentions], f)

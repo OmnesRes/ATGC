@@ -39,7 +39,7 @@ left=0.045,
 right=1.0,
 hspace=0.2,
 wspace=0.2)
-ax = sns.stripplot(x="class", y="predictions", hue='Model', dodge=True, jitter=.35, data=sample_df, edgecolor='k', linewidth=1, ax=ax)
+sns.stripplot(x="class", y="predictions", hue='Model', dodge=True, jitter=.35, data=sample_df, edgecolor='k', linewidth=1, ax=ax)
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
 ax.set_yticks([])

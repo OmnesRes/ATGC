@@ -5,8 +5,8 @@ from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[4], True)
-tf.config.experimental.set_visible_devices(physical_devices[4], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[3], True)
+tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
@@ -83,25 +83,22 @@ ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        ),
                                        y))
 
-histories = []
-evaluations = []
-weights = []
-for i in range(3):
-    sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    sample_encoder = SampleModels.Type(shape=(), dim=10)
-    mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], sample_layers=[64, ], output_dim=1, pooling='sum', output_type='other')
-    losses = ['mse']
-    mil.model.compile(loss=losses,
-                      metrics=['mse'],
-                      optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
-                    ))
-    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_mse', min_delta=0.001, patience=20, mode='min', restore_best_weights=True)]
-    history = mil.model.fit(ds_train, steps_per_epoch=10, validation_data=ds_valid, epochs=10000, callbacks=callbacks)
-    evaluation = mil.model.evaluate(ds_test)
-    histories.append(history.history)
-    evaluations.append(evaluation)
-    weights.append(mil.model.get_weights())
+# evaluations, histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_3' / 'sample_model_sum_before.pkl', 'rb'))
+evaluations, histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_3' / 'sample_model_sum_after.pkl', 'rb'))
 
 
-with open(cwd / 'sim_data' / 'sample_info' / 'experiment_3' / 'sample_model_sum_after.pkl', 'wb') as f:
-    pickle.dump([evaluations, histories, weights], f)
+sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
+class_encoder = SampleModels.Type(shape=(), dim=10)
+sample_encoder = SampleModels.Type(shape=(), dim=10)
+
+# mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], fusion='before', instance_layers=[64, ], output_dim=1, pooling='sum', output_type='other')
+mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], sample_layers=[64, ], output_dim=1, pooling='sum', output_type='other')
+
+
+attentions = []
+for i in weights:
+    mil.model.set_weights(i)
+    attentions.append(mil.attention_model.predict(ds_test).to_list())
+
+with open(cwd / 'sim_data' / 'sample_info' / 'experiment_3' / 'sample_model_sum_after_attention.pkl', 'wb') as f:
+    pickle.dump([idx_test, attentions], f)
