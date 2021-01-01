@@ -13,9 +13,9 @@ else:
     import sys
     sys.path.append(str(cwd))
 
-D, samples = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_3' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_1' / 'sim_data.pkl', 'rb'))
 
-idx_test, attentions = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_3' / 'sample_model_sum_before_attention.pkl', 'rb'))
+idx_test, attentions = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_1' / 'sample_model_sum_before_attention.pkl', 'rb'))
 
 idx_test = idx_test[:20]
 indexes = [np.where(D['sample_idx'] == idx) for idx in idx_test]
@@ -26,7 +26,7 @@ for i in indexes:
 
 classes = np.concatenate(classes)
 types = np.concatenate(np.array([np.array(samples['type'])[D['sample_idx']][i] for i in indexes]))
-attention = (np.concatenate(attentions[1][:20]))
+attention = (np.concatenate(attentions[3][:20]))
 
 instance_df = pd.DataFrame({'attention': attention.flat, 'class': classes, 'type': types})
 
@@ -48,8 +48,8 @@ ax.tick_params(length=0)
 ax.set_xticklabels(['False', 'True'], fontsize=14)
 ax.set_ylabel('Attention', fontsize=16)
 ax.set_xlabel('Key Instance', fontsize=16)
-ax.legend(frameon=False, title='Sample Type', fontsize=10, title_fontsize=12, loc=(.6, .85), ncol=3)
+ax.legend(frameon=False, title='Sample Type', fontsize=10, title_fontsize=12, loc=(-.05, .95), ncol=3)
 ax.set_title('Before', fontsize=24)
 
-plt.savefig(cwd / 'sim_data' / 'sample_info' / 'experiment_3' / 'before_attention.png', dpi=300)
+plt.savefig(cwd / 'sim_data' / 'sample_info' / 'experiment_1' / 'before_attention.png', dpi=300)
 

@@ -20,14 +20,14 @@ else:
 ##load the instance and sample data
 D, samples = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_1' / 'sim_data.pkl', 'rb'))
 
-types = np.array(samples['type'])[:, np.newaxis]
+types = np.array(samples['type'])
 
 
 ##perform embeddings with a zero vector for index 0
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
 D['strand_emb'] = strand_emb_mat[D['strand']]
 
-indexes = [np.where(D['sample_idx'] == idx) for idx in range(len(samples['classes']))]
+indexes = [np.where(D['sample_idx'] == idx) for idx in range(len(samples['type']))]
 
 five_p = np.array([D['seq_5p'][i] for i in indexes], dtype='object')
 three_p = np.array([D['seq_3p'][i] for i in indexes], dtype='object')
@@ -41,10 +41,10 @@ ref_loader = DatasetsUtils.Map.FromNumpy(ref, tf.int32)
 alt_loader = DatasetsUtils.Map.FromNumpy(alt, tf.int32)
 strand_loader = DatasetsUtils.Map.FromNumpy(strand, tf.float32)
 
-y_label = np.stack([[0, 1] if i == 1 else [1, 0] for i in samples['classes']])
-strat_dict = {key: index for index, key in enumerate(set(tuple([label, group]) for label, group in zip(samples['classes'], samples['type'])))}
-y_strat = np.array([strat_dict[(label, group)] for label, group in zip(samples['classes'], samples['type'])])
-class_counts = dict(zip(*np.unique(y_strat, return_counts=True)))
+
+y_label = np.log(np.array(samples['values']) + 1)[:, np.newaxis]
+y_strat = np.array(samples['type'])
+
 
 idx_train, idx_test = next(StratifiedShuffleSplit(random_state=0, n_splits=1, test_size=200).split(y_strat, y_strat))
 idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
@@ -88,14 +88,15 @@ evaluations = []
 weights = []
 for i in range(6):
     sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    sample_encoder = SampleModels.PassThrough(shape=(types.shape[-1], ))
-    mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], output_dim=2, pooling='mean', fusion='before')
-    losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
+    sample_encoder = SampleModels.Type(shape=(), dim=len(np.unique(types)))
+    # mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], sample_layers=[64, ], output_dim=1, pooling='sum', output_type='other')
+    mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], fusion='before', instance_layers=[64, ], output_dim=1, pooling='sum', output_type='other')
+    losses = ['mse']
     mil.model.compile(loss=losses,
-                      metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],
+                      metrics=['mse'],
                       optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
                     ))
-    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=20, mode='min', restore_best_weights=True)]
+    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_mse', min_delta=0.001, patience=20, mode='min', restore_best_weights=True)]
     history = mil.model.fit(ds_train, steps_per_epoch=10, validation_data=ds_valid, epochs=10000, callbacks=callbacks)
     evaluation = mil.model.evaluate(ds_test)
     histories.append(history.history)
@@ -103,5 +104,5 @@ for i in range(6):
     weights.append(mil.model.get_weights())
 
 
-with open(cwd / 'sim_data' / 'sample_info' / 'experiment_1' / 'sample_model_mean_before.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'sample_info' / 'experiment_1' / 'sample_model_sum_before.pkl', 'wb') as f:
     pickle.dump([evaluations, histories, weights], f)

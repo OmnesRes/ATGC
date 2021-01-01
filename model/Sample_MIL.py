@@ -193,6 +193,9 @@ class RaggedModels:
                 else:
                     fused = [pooled_hidden[-1]]
 
+            else:
+                fused = [pooled_hidden[-1]]
+
             for i in self.sample_layers:
                 fused.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(fused[-1]))
 

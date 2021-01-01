@@ -69,9 +69,9 @@ samples = {'values': [],
 for idx in range(1000):
     ##what percent of samples are control
     type = np.random.choice(range(1, 4))
-    variants = generate_sample(positive_choices=positive_choices, factor=type * 5)
+    variants = generate_sample(positive_choices=positive_choices, factor=1)
     samples['type'] = samples['type'] + [type]
-    samples['values'] = samples['values'] + [variants[2]]
+    samples['values'] = samples['values'] + [variants[2] + type * 30]
     instances['sample_idx'] = instances['sample_idx'] + [idx] * len(variants[0])
     instances['seq_5p'] = instances['seq_5p'] + [i[0] for i in variants[0]]
     instances['seq_3p'] = instances['seq_3p'] + [i[1] for i in variants[0]]
