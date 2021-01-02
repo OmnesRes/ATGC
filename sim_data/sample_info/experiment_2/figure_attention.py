@@ -15,7 +15,7 @@ else:
 
 D, samples = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sim_data.pkl', 'rb'))
 
-idx_test, attentions = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_after_attention.pkl', 'rb'))
+idx_test, attentions, predictions = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_after_attention.pkl', 'rb'))
 
 idx_test = idx_test[:20]
 indexes = [np.where(D['sample_idx'] == idx) for idx in idx_test]
