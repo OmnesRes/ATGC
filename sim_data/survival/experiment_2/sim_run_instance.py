@@ -19,7 +19,7 @@ else:
     sys.path.append(str(cwd))
 
 ##load the instance and sample data
-D, samples = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_3' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sim_data.pkl', 'rb'))
 
 ##perform embeddings with a zero vector for index 0
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
@@ -96,16 +96,16 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
     while X == False:
         try:
             tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-            mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other')
+            mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other', instance_layers=[128, 64])
             losses = [RaggedModels.losses.CoxPH()]
             mil.model.compile(loss=losses,
                               metrics=[RaggedModels.losses.CoxPH()],
                               optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
                             ))
-            callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_coxph', min_delta=0.0001, patience=10, mode='min', restore_best_weights=True)]
+            callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_coxph', min_delta=0.0001, patience=20, mode='min', restore_best_weights=True)]
             history = mil.model.fit(ds_train, steps_per_epoch=4, validation_data=ds_valid, epochs=10000, callbacks=callbacks)
             y_pred_all = mil.model.predict(ds_all)
-            if concordance_index(samples['times'], np.exp(-1 * y_pred_all[:, 0]), samples['event']) > .55:
+            if concordance_index(samples['times'], np.exp(-1 * y_pred_all[:, 0]), samples['event']) > .52:
                 X = True
                 evaluation = mil.model.evaluate(ds_test)
                 histories.append(history.history)
@@ -136,5 +136,5 @@ concordance_index(samples['times'][indexes], ranks, samples['event'][indexes])
 # concordance_index(samples['times'], np.exp(-1 * samples['classes']), samples['event'])
 
 
-with open(cwd / 'sim_data' / 'survival' / 'experiment_3' / 'instance_model_sum.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'instance_model_sum.pkl', 'wb') as f:
     pickle.dump([evaluations, histories, weights], f)

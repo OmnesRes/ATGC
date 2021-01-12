@@ -1,8 +1,6 @@
 from lifelines import KaplanMeierFitter
 from lifelines.utils import concordance_index
 from lifelines import CoxPHFitter
-import pylab as plt
-import seaborn as sns
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
@@ -20,12 +18,12 @@ else:
 
 D, samples = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sim_data.pkl', 'rb'))
 
-# instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'instance_model_sum.pkl', 'rb'))
-sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_sum.pkl', 'rb'))
+instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'instance_model_sum.pkl', 'rb'))
+# sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_sum.pkl', 'rb'))
 
 import tensorflow as tf
-# from model.Instance_MIL import InstanceModels, RaggedModels
-from model.Sample_MIL import InstanceModels, RaggedModels
+from model.Instance_MIL import InstanceModels, RaggedModels
+# from model.Sample_MIL import InstanceModels, RaggedModels
 from model import DatasetsUtils
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[4], True)
@@ -74,8 +72,8 @@ cancer_test_expectation_ranks = {}
 for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_strat, y_strat)):
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other', pooled_layers=[128, 64])
-    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other')
+    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other', pooled_layers=[128, 64], mode='none')
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other', instance_layers=[128, 64])
 
     mil.model.set_weights(weights[index])
     y_pred_all = mil.model.predict(ds_all)
@@ -98,7 +96,7 @@ sample_df = pd.DataFrame(data={'class': samples['classes'][idx_test],
                                'predictions': y_pred_all[:, 0][idx_test],
                                })
 
-with open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_sum_eval.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'instance_model_sum_eval.pkl', 'wb') as f:
     pickle.dump([indexes, ranks, sample_df], f)
 
 

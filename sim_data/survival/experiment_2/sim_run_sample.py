@@ -100,7 +100,7 @@ for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random
         print(index)
         try:
             tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-            mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='mean', output_type='other', pooled_layers=[128, 64])
+            mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other', pooled_layers=[128, 64], mode='none')
             losses = [RaggedModels.losses.CoxPH()]
             mil.model.compile(loss=losses,
                               metrics=[RaggedModels.losses.CoxPH()],
@@ -140,5 +140,5 @@ concordance_index(samples['times'][indexes], ranks, samples['event'][indexes])
 # concordance_index(samples['times'], np.exp(-1 * samples['classes']), samples['event'])
 
 
-with open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_mean.pkl', 'wb') as f:
-    pickle.dump([evaluations, histories, weights], f)
+# with open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_sum.pkl', 'wb') as f:
+#     pickle.dump([evaluations, histories, weights], f)

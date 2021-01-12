@@ -11,21 +11,22 @@ else:
     import sys
     sys.path.append(str(cwd))
 
-D, samples = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_3' / 'sim_data.pkl', 'rb'))
 
-idx_test, instance_sum_predictions = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'instance_model_sum_predictions.pkl', 'rb'))
-idx_test, instance_mean_predictions = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'instance_model_mean_predictions.pkl', 'rb'))
-idx_test, sample_sum_predictions = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'sample_model_sum_predictions.pkl', 'rb'))
-idx_test, sample_mean_predictions = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'sample_model_mean_predictions.pkl', 'rb'))
+idx_test, instance_sum_predictions = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_3' / 'instance_model_sum_predictions.pkl', 'rb'))
+idx_test, instance_mean_predictions = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_3' / 'instance_model_mean_predictions.pkl', 'rb'))
+idx_test, sample_sum_predictions = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_3' / 'sample_model_sum_predictions.pkl', 'rb'))
+idx_test, sample_mean_predictions = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_3' / 'sample_model_mean_predictions.pkl', 'rb'))
 
 ##get x_true and y_true
 
 x_true = []
 for sample_idx in idx_test:
     variants = D['class'][np.where(D['sample_idx'] == sample_idx)]
-    x_true.append(len(np.where(variants != 0)[0]))
+    x_true.append(np.ceil(len(np.where(variants != 0)[0]) * 100 / len(np.where(D['sample_idx'] == sample_idx)[0])))
 
 y_true = np.array(samples['values'])[idx_test]
+
 
 predictions = [y_true, instance_sum_predictions, instance_mean_predictions, sample_sum_predictions, sample_mean_predictions]
 
@@ -56,18 +57,17 @@ for index, i in enumerate(['True Value', 'Instance Sum', 'Instance Mean', 'Sampl
             else:
                 ax.scatter(x, y, color=colors[index], zorder=np.random.choice(z_order))
 
-
 ax.set_yticks([])
 ax.set_xticks([])
-ax.set_ylim([-2000, max(y_true) + 1000])
+
 ax.set_ylabel('Bag Value', fontsize=24, labelpad=-10)
-ax.set_xlabel('Key Instance Count', fontsize=24, labelpad=0)
+ax.set_xlabel('Key Instance Fraction', fontsize=24, labelpad=0)
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
 ax.spines['left'].set_visible(False)
 ax.spines['bottom'].set_visible(False)
 ax.legend(frameon=False, loc='upper left', fontsize=14)
 
-plt.savefig(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'figure_predictions.png', dpi=300)
+plt.savefig(cwd / 'sim_data' / 'regression' / 'experiment_3' / 'figure_predictions.png', dpi=300)
 
 

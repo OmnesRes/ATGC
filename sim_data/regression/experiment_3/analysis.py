@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from model.Sample_MIL import InstanceModels, RaggedModels
 from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit
 import pickle
@@ -18,7 +17,7 @@ else:
     sys.path.append(str(cwd))
 
 ##load the instance and sample data
-D, samples = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_1' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_3' / 'sim_data.pkl', 'rb'))
 
 ##perform embeddings with a zero vector for index 0
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
@@ -44,24 +43,6 @@ y_strat = np.ones_like(y_label)
 idx_train, idx_test = next(StratifiedShuffleSplit(random_state=0, n_splits=1, test_size=200).split(y_strat, y_strat))
 idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
-ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_strat[idx_train]))
-ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=100, ds_size=len(idx_train)))
-ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
-                                       three_p_loader(x, ragged_output=True),
-                                       ref_loader(x, ragged_output=True),
-                                       alt_loader(x, ragged_output=True),
-                                       strand_loader(x, ragged_output=True)),
-                                       y))
-
-ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, y_label[idx_valid]))
-ds_valid = ds_valid.batch(len(idx_valid), drop_remainder=False)
-ds_valid = ds_valid.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
-                                       three_p_loader(x, ragged_output=True),
-                                       ref_loader(x, ragged_output=True),
-                                       alt_loader(x, ragged_output=True),
-                                       strand_loader(x, ragged_output=True)),
-                                       y))
-
 ds_test = tf.data.Dataset.from_tensor_slices((idx_test, y_label[idx_test]))
 ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
 ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
@@ -69,26 +50,19 @@ ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        ref_loader(x, ragged_output=True),
                                        alt_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True)),
-                                       y))
+                                       ))
 
-histories = []
-evaluations = []
-weights = []
+# from model.Sample_MIL import InstanceModels, RaggedModels
+from model.Instance_MIL import InstanceModels, RaggedModels
+evaluations, histories, weights = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_3' / 'instance_model_sum.pkl', 'rb'))
+
+predictions = []
 for i in range(3):
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='regression', mode='none')
-    losses = ['mse']
-    mil.model.compile(loss=losses,
-                      metrics=['mse'],
-                      optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
-                    ))
-    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_mse', min_delta=0.001, patience=20, mode='min', restore_best_weights=True)]
-    history = mil.model.fit(ds_train, steps_per_epoch=10, validation_data=ds_valid, epochs=10000, callbacks=callbacks)
-    evaluation = mil.model.evaluate(ds_test)
-    histories.append(history.history)
-    evaluations.append(evaluation)
-    weights.append(mil.model.get_weights())
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='regression')
+    mil.model.set_weights(weights[i])
+    predictions.append(mil.model.predict(ds_test))
 
 
-with open(cwd / 'sim_data' / 'regression' / 'experiment_1' / 'sample_model_sum.pkl', 'wb') as f:
-    pickle.dump([evaluations, histories, weights], f)
+with open(cwd / 'sim_data' / 'regression' / 'experiment_3' / 'instance_model_sum_predictions.pkl', 'wb') as f:
+    pickle.dump([idx_test, predictions], f)

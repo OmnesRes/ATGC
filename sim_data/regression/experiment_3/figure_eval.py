@@ -64,6 +64,6 @@ ax2.spines['top'].set_visible(False)
 ax2.spines['right'].set_visible(False)
 ax2.spines['left'].set_visible(False)
 ax2.spines['bottom'].set_visible(False)
-plt.savefig(cwd / 'sim_data' / 'regression' / 'experiment_1' / 'figure.pdf')
+plt.savefig(cwd / 'sim_data' / 'regression' / 'experiment_3' / 'figure.pdf')
 
 

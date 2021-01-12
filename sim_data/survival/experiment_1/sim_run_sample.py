@@ -98,7 +98,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
     while X == False:
         try:
             tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-            mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other')
+            mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other', mode='none')
             losses = [RaggedModels.losses.CoxPH()]
             mil.model.compile(loss=losses,
                               metrics=[RaggedModels.losses.CoxPH()],

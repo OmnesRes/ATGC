@@ -22,13 +22,16 @@ else:
 
 D, samples = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sim_data.pkl', 'rb'))
 
-instance_indexes, instance_ranks, instance_sample_df = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'instance_model_sum_eval.pkl', 'rb'))
-sample_indexes, sample_ranks, sample_sample_df = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_sum_eval.pkl', 'rb'))
+instance_sum_indexes, instance_sum_ranks, instance_sum_sample_df = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'instance_model_sum_eval.pkl', 'rb'))
+sample_sum_indexes, sample_sum_ranks, sample_sum_sample_df = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_sum_eval.pkl', 'rb'))
+sample_sum_attention_indexes, sample_sum_attention_ranks, sample_sum_attention_sample_df = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_attention_sum_eval.pkl', 'rb'))
 
-instance_sample_df['Model'] = 'Instance'
-sample_sample_df['Model'] = 'Sample'
 
-sample_df = instance_sample_df.append(sample_sample_df)
+instance_sum_sample_df['Model'] = 'Instance Sum'
+sample_sum_sample_df['Model'] = 'Sample Sum'
+sample_sum_attention_sample_df['Model'] ='Sample Attention Sum'
+
+sample_df = instance_sum_sample_df.append(sample_sum_sample_df).append(sample_sum_attention_sample_df)
 
 
 fig = plt.figure()
@@ -42,13 +45,13 @@ wspace=0.2)
 sns.stripplot(x="class", y="predictions", hue='Model', dodge=True, jitter=.35, data=sample_df, edgecolor='k', linewidth=1, ax=ax)
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
+ax.spines['bottom'].set_visible(False)
+ax.spines['left'].set_visible(False)
 ax.set_yticks([])
 ax.set_xticks([])
-ax.spines['bottom'].set_linewidth(1.5)
-ax.spines['left'].set_linewidth(1.5)
 ax.set_ylabel('Predicted Risk', fontsize=16)
 ax.set_xlabel('Bag Label', fontsize=16)
-ax.legend(frameon=False, title='Model', fontsize=12, title_fontsize=14, loc=(.01, .8))
+ax.legend(frameon=False, title='Model', fontsize=12, title_fontsize=14, loc=(.01, .74))
 
-plt.savefig(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'figure.pdf')
+plt.savefig(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'figure_predictions.pdf')
 

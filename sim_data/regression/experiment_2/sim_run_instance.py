@@ -75,9 +75,9 @@ ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
 histories = []
 evaluations = []
 weights = []
-for i in range(3):
+for i in range(6):
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other', instance_activation=None)
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='custom', instance_activation=None)
     losses = ['mse']
     mil.model.compile(loss=losses,
                       metrics=['mse'],
@@ -92,6 +92,10 @@ for i in range(3):
     weights.append(mil.model.get_weights())
 
 
-with open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'instance_model_sum.pkl', 'wb') as f:
-    pickle.dump([evaluations, histories, weights], f)
+# with open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'instance_model_sum.pkl', 'wb') as f:
+#     pickle.dump([evaluations, histories, weights], f)
 
+#
+# mil.model.set_weights(weights[0])
+#
+predictions = mil.attention_model.predict(ds_test).to_list()

@@ -124,8 +124,8 @@ class SampleModels:
 class RaggedModels:
 
     class MIL:
-        def __init__(self, instance_encoders=[], sample_encoders=[], output_dim=1, attention_heads=1, output_type='classification', pooling='sum', instance_activation=None):
-            self.instance_encoders, self.sample_encoders, self.output_dim, self.attention_heads, self.output_type, self.pooling, self.instance_activation = instance_encoders, sample_encoders, output_dim, attention_heads, output_type, pooling, instance_activation
+        def __init__(self, instance_encoders=[], sample_encoders=[], output_dim=1, attention_heads=1, output_type='classification', pooling='sum', instance_activation=None, instance_layers=[], custom_layers=[16, 32, 16, 1]):
+            self.instance_encoders, self.sample_encoders, self.output_dim, self.attention_heads, self.output_type, self.pooling, self.instance_activation, self.instance_layers, self.custom_layers = instance_encoders, sample_encoders, output_dim, attention_heads, output_type, pooling, instance_activation, instance_layers, custom_layers
             self.model, self.attention_model = None, None
             self.build()
 
@@ -138,14 +138,21 @@ class RaggedModels:
                 ragged_encodings = [Ragged.MapFlatValues(tf.keras.layers.Flatten())(ragged_encoding) for ragged_encoding in ragged_encodings]
 
                 # based on the design of the input and graph instances can be fused prior to bag aggregation
-                ragged_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=2))(ragged_encodings)
+                ragged_fused = [tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=2))(ragged_encodings)]
 
-                ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=32, activation=tf.keras.activations.relu))(ragged_fused)
+                for i in self.instance_layers:
+                    ragged_fused.append(Ragged.MapFlatValues(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu))(ragged_fused[-1]))
+
+                ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=32, activation=tf.keras.activations.relu))(ragged_fused[-1])
                 ragged_hidden = Ragged.MapFlatValues(tf.keras.layers.Dense(units=16, activation=tf.keras.activations.relu))(ragged_hidden)
 
                 if self.output_type == 'regression':
                     instance_predictions = Ragged.MapFlatValues(tf.keras.layers.Dense(units=self.output_dim,
                                                                                       activation='softplus',
+                                                                                      use_bias=True))(ragged_hidden)
+                elif self.output_type == 'custom':
+                    instance_predictions = Ragged.MapFlatValues(tf.keras.layers.Dense(units=self.output_dim,
+                                                                                      activation=Activations.ASU(),
                                                                                       use_bias=True))(ragged_hidden)
                 else:
                     instance_predictions = Ragged.MapFlatValues(tf.keras.layers.Dense(units=self.output_dim,
@@ -167,6 +174,12 @@ class RaggedModels:
             elif self.output_type == 'regression':
                 ##assumes log transformed output
                 output_tensor = tf.math.log(pooling + 1)
+            elif self.output_type == 'custom':
+                output = [pooling]
+                for i in self.custom_layers:
+                    output.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(output[-1]))
+                output_tensor = output[-1]
+
             else:
                 output_tensor = pooling
                 # probabilities = tf.keras.activations.softplus(pooling)

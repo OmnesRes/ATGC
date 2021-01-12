@@ -1,8 +1,6 @@
 from lifelines import KaplanMeierFitter
 from lifelines.utils import concordance_index
 from lifelines import CoxPHFitter
-import pylab as plt
-import seaborn as sns
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
@@ -79,7 +77,7 @@ sample_dfs = []
 for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_strat, y_strat)):
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other')
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other', mode='none')
     mil.model.set_weights(weights[index])
     y_pred_all = mil.model.predict(ds_all)
     ##get ranks per cancer

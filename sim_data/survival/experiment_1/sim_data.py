@@ -229,20 +229,7 @@ concordance_index(samples['times'], np.exp(-1 * samples['classes']), samples['ev
 with open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sim_data.pkl', 'wb') as f:
     pickle.dump([instances, samples, ], f)
 
-##cox regression
 
-##lifelines
-##need a dataframe
-
-# d = {'risks': np.concatenate([np.zeros(500), np.ones(500)]),
-#      'times': np.concatenate([low_risk_group[0], high_risk_group[0]]),
-#      'events': np.concatenate([low_risk_group[1], high_risk_group[1]])}
-# data = pd.DataFrame(data=d)
-#
-#
-# cph = CoxPHFitter()
-# cph.fit(data, 'times', 'events')
-# cph.print_summary()
 
 
 
