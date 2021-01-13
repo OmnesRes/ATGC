@@ -2,6 +2,7 @@ import pylab as plt
 import numpy as np
 import pickle
 import pathlib
+from matplotlib import cm
 path = pathlib.Path.cwd()
 
 if path.stem == 'ATGC2':
@@ -17,21 +18,26 @@ instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd
 instance_mean_evaluations, instance_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'instance_model_mean.pkl', 'rb'))
 sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'sample_model_sum.pkl', 'rb'))
 sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'sample_model_mean.pkl', 'rb'))
+sample_sum_attention_evaluations, sample_sum_attention_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'sample_model_attention_sum.pkl', 'rb'))
+sample_mean_attention_evaluations, sample_mean_attention_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'sample_model_attention_mean.pkl', 'rb'))
 
-losses = np.array([i[-1] for i in instance_sum_evaluations + instance_mean_evaluations + sample_sum_evaluations + sample_mean_evaluations])
+
+losses = np.array([i[-1] for i in instance_mean_evaluations + instance_sum_evaluations + sample_mean_evaluations + sample_sum_evaluations + sample_mean_attention_evaluations + sample_sum_attention_evaluations])
 losses = losses / max(losses)
 first_loss = losses[np.arange(0, len(losses), 3)]
 second_loss = losses[np.arange(1, len(losses), 3)]
 third_loss = losses[np.arange(2, len(losses), 3)]
 
-epochs = np.array([len(i['val_categorical_crossentropy']) - 100 for i in instance_sum_histories + instance_mean_histories]
-                  + [len(i['val_categorical_crossentropy']) - 25 for i in sample_sum_histories + sample_mean_histories])
+epochs = np.array([len(i['val_categorical_crossentropy']) - 100 for i in instance_mean_histories + instance_sum_histories]
+                  + [len(i['val_categorical_crossentropy']) - 25 for i in sample_mean_histories + sample_sum_histories + sample_mean_attention_histories + sample_sum_attention_histories])
 epochs = epochs / max(epochs)
 
-colors = ['#1f77b4'] * 3 + ['#ff7f0e'] * 3 + ['#2ca02c'] * 3 + ['#d62728'] * 3
+##create custom colorblind friendly cmap
+paired = [cm.get_cmap('Paired')(i) for i in range(12) if i not in [4, 5]]
+colors = [paired[0]] * 3 + [paired[1]] * 3 + [paired[2]] * 3 + [paired[3]] * 3 + [paired[4]] * 3 + [paired[5]] * 3
 
 spacer = np.ones_like(losses)/25
-centers = np.concatenate([np.arange(3) + i * 3.2 for i in range(4)])
+centers = np.concatenate([np.arange(3) + i * 3.2 for i in range(6)])
 fig = plt.figure()
 ax = fig.add_subplot(111)
 fig.subplots_adjust(
@@ -43,7 +49,7 @@ hspace=0.2,
 wspace=0.2)
 ax.bar(centers, losses, edgecolor='k', bottom=spacer, color=colors, align='center', linewidth=.5, width=1)
 
-ax.set_xlim(min(centers) - .503, max(centers) + .503)
+ax.set_xlim(min(centers) - .51, max(centers) + .51)
 ax.set_ylim(-max(epochs) - .003, max(losses + spacer) + .003)
 ax.set_yticks([])
 ax.set_xticks([])
@@ -52,7 +58,7 @@ ax.set_xticks([])
 ax2 = ax.twinx()
 ax2.bar(centers, -epochs, edgecolor='k', color=colors, align='center', linewidth=.5, width=1)
 ax2.set_ylim(-max(epochs) - .003, max(losses + spacer) + .003)
-ax2.set_xlim(min(centers) - .503, max(centers) + .503)
+ax2.set_xlim(min(centers) - .51, max(centers) + .51)
 ax2.set_yticks([])
 ax2.set_xticks([])
 
