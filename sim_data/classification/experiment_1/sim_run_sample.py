@@ -77,7 +77,8 @@ evaluations = []
 weights = []
 for i in range(3):
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='sum')
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='dynamic')
+    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='both', pooled_layers=[32, ])
     losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
     mil.model.compile(loss=losses,
                       metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],
@@ -91,5 +92,5 @@ for i in range(3):
     weights.append(mil.model.get_weights())
 
 
-with open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sample_model_attention_sum.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sample_model_attention_dynamic.pkl', 'wb') as f:
     pickle.dump([evaluations, histories, weights], f)

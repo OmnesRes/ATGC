@@ -20,20 +20,27 @@ sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / '
 sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sample_model_mean.pkl', 'rb'))
 sample_sum_attention_evaluations, sample_sum_attention_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sample_model_attention_sum.pkl', 'rb'))
 sample_mean_attention_evaluations, sample_mean_attention_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sample_model_attention_mean.pkl', 'rb'))
+sample_both_attention_evaluations, sample_both_attention_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sample_model_attention_both.pkl', 'rb'))
+sample_dynamic_attention_evaluations, sample_dynamic_attention_histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sample_model_attention_dynamic.pkl', 'rb'))
 
 
-losses = np.array([i[-1] for i in instance_mean_evaluations + instance_sum_evaluations + sample_mean_evaluations + sample_sum_evaluations + sample_mean_attention_evaluations + sample_sum_attention_evaluations])
+
+losses = np.array([i[-1] for i in instance_mean_evaluations + instance_sum_evaluations + \
+                   sample_mean_evaluations + sample_sum_evaluations + \
+                   sample_mean_attention_evaluations + sample_sum_attention_evaluations + \
+                   sample_both_attention_evaluations + sample_dynamic_attention_evaluations])
 losses = losses / max(losses)
 
 epochs = np.array([len(i['val_categorical_crossentropy']) - 40 for i in instance_mean_histories + instance_sum_histories]
-                  + [len(i['val_categorical_crossentropy']) - 20 for i in sample_mean_histories + sample_sum_histories + sample_mean_attention_histories + sample_sum_attention_histories])
+                  + [len(i['val_categorical_crossentropy']) - 20 for i in sample_mean_histories + sample_sum_histories +\
+                     sample_mean_attention_histories + sample_sum_attention_histories + sample_both_attention_histories + sample_dynamic_attention_histories])
 epochs = epochs / max(epochs)
 
 paired = [cm.get_cmap('Paired')(i) for i in range(12) if i not in [4, 5]]
-colors = [paired[0]] * 3 + [paired[1]] * 3 + [paired[2]] * 3 + [paired[3]] * 3 + [paired[4]] * 3 + [paired[5]] * 3
+colors = [paired[0]] * 3 + [paired[1]] * 3 + [paired[2]] * 3 + [paired[3]] * 3 + [paired[4]] * 3 + [paired[5]] * 3 + [paired[6]] * 3 + [paired[7]] * 3
 
 spacer = np.ones_like(losses)/25
-centers = np.concatenate([np.arange(3) + i * 3.2 for i in range(6)])
+centers = np.concatenate([np.arange(3) + i * 3.2 for i in range(8)])
 fig = plt.figure()
 ax = fig.add_subplot(111)
 fig.subplots_adjust(

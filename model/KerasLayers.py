@@ -154,29 +154,41 @@ class Ragged:
             return tf.ragged.map_flat_values(self.activation_layer, ragged_dot)
 
     class Attention(tf.keras.layers.Layer):
-        def __init__(self, pooling='sum', regularization=.2):
+        def __init__(self, pooling='sum', regularization=.2, layers=[16, ]):
             super(Ragged.Attention, self).__init__()
             self.pooling = pooling
             self._supports_ragged_inputs = True
-            self.attention_layer_1 = tf.keras.layers.Dense(units=16, activation='relu')
-            self.attention_layer_2 = tf.keras.layers.Dense(units=1, activation=Activations.ASU(), activity_regularizer=tf.keras.regularizers.l1(regularization))
+            self.layers = layers
+            self.regularization = regularization
+            self.attention_layers = []
+            for i in layers:
+                self.attention_layers.append(tf.keras.layers.Dense(units=i, activation='relu'))
+            self.attention_layers.append(tf.keras.layers.Dense(units=1, activation=Activations.ASU(), activity_regularizer=tf.keras.regularizers.l1(regularization)))
 
         def call(self, inputs, **kwargs):
-            attention_weights = tf.ragged.map_flat_values(self.attention_layer_1, inputs)
-            attention_weights = tf.ragged.map_flat_values(self.attention_layer_2, attention_weights)
-
-            if self.pooling == 'mean':
+            if self.pooling == 'dynamic':
+                attention_weights = [inputs[1]]
+                for i in self.attention_layers:
+                    attention_weights.append(tf.ragged.map_flat_values(i, attention_weights[-1]))
+                attention_weights = attention_weights[-1]
                 pooled = tf.reduce_sum(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
                                                                  [tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
-                                                                  tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)]), axis=1)
-                pooled = pooled / tf.expand_dims(tf.reduce_sum(attention_weights, axis=1), axis=-1)
-
-
+                                                                  tf.ragged.map_flat_values(tf.expand_dims, inputs[0], axis=1)]), axis=1)
 
             else:
-                pooled = tf.reduce_sum(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
-                                                                    [tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
-                                                                     tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)]), axis=1)
+                attention_weights = [inputs]
+                for i in self.attention_layers:
+                    attention_weights.append(tf.ragged.map_flat_values(i, attention_weights[-1]))
+                attention_weights = attention_weights[-1]
+                if self.pooling == 'mean':
+                    pooled = tf.reduce_sum(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
+                                                                     [tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
+                                                                      tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)]), axis=1)
+                    pooled = pooled / tf.expand_dims(tf.reduce_sum(attention_weights, axis=1), axis=-1)
+                else:
+                    pooled = tf.reduce_sum(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
+                                                                        [tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
+                                                                         tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)]), axis=1)
 
             return pooled, attention_weights
 

@@ -72,12 +72,14 @@ ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        y))
 
 tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='mean')
+mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='dynamic')
+# mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='both', pooled_layers=[32, ])
 attentions = []
-evaluations, histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sample_model_attention_mean.pkl', 'rb'))
+evaluations, histories, weights = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sample_model_attention_dynamic.pkl', 'rb'))
 for i in range(3):
     mil.model.set_weights(weights[i])
+    temp = mil.attention_model.predict(ds_test)
     attentions.append(mil.attention_model.predict(ds_test).to_list())
 
-with open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'mean_attentions.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'dynamic_attentions.pkl', 'wb') as f:
     pickle.dump([idx_test, attentions], f)

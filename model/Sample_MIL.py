@@ -171,8 +171,17 @@ class RaggedModels:
                     ragged_hidden.append(Ragged.MapFlatValues(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu))(ragged_hidden[-1]))
 
                 if self.mode == 'attention':
-                    pooling, ragged_attention_weights = Ragged.Attention(pooling=self.pooling, regularization=self.regularization)(ragged_hidden[-1])
-                    pooled_hidden = [pooling[:, 0, :]]
+                    if self.pooling == 'both':
+                        pooling, ragged_attention_weights = Ragged.Attention(pooling='mean', regularization=self.regularization)(ragged_hidden[-1])
+                        pooled_hidden = [tf.concat([pooling[:, 0, :], tf.keras.layers.Lambda(lambda x: tf.reduce_sum(x, axis=1))(ragged_attention_weights)], axis=-1)]
+                    elif self.pooling == 'dynamic':
+                        pooling_1, ragged_attention_weights_1 = Ragged.Attention(pooling='mean', regularization=self.regularization)(ragged_hidden[-1])
+                        instance_ragged_fused = Ragged.Dense(units=32, activation=tf.keras.activations.relu)((ragged_hidden[-1], pooling_1[:, 0, :]))
+                        pooling_2, ragged_attention_weights = Ragged.Attention(pooling='dynamic', regularization=self.regularization)([[-1], instance_ragged_fused])
+                        pooled_hidden = [pooling_2[:, 0, :]]
+                    else:
+                        pooling, ragged_attention_weights = Ragged.Attention(pooling=self.pooling, regularization=self.regularization)(ragged_hidden[-1])
+                        pooled_hidden = [pooling[:, 0, :]]
                 else:
                     if self.pooling == 'mean':
                         pooling = tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, axis=ragged_hidden[-1].ragged_rank))(ragged_hidden[-1])
