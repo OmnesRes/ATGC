@@ -5,8 +5,8 @@ from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[3], True)
-tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[4], True)
+tf.config.experimental.set_visible_devices(physical_devices[4], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
@@ -77,7 +77,8 @@ evaluations = []
 weights = []
 for i in range(3):
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='mean', mode='none')
+    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='both', pooled_layers=[32, ])
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='sum')
     losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
     mil.model.compile(loss=losses,
                       metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],
@@ -92,6 +93,6 @@ for i in range(3):
     del mil
 
 
-# with open(cwd / 'sim_data' / 'classification' / 'experiment_3' / 'sample_model_mean.pkl', 'wb') as f:
+# with open(cwd / 'sim_data' / 'classification' / 'experiment_3' / 'sample_model_attention_dynamic.pkl', 'wb') as f:
 #     pickle.dump([evaluations, histories, weights], f)
 

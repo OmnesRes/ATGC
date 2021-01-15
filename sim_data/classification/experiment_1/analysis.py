@@ -81,5 +81,7 @@ for i in range(3):
     temp = mil.attention_model.predict(ds_test)
     attentions.append(mil.attention_model.predict(ds_test).to_list())
 
-with open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'dynamic_attentions.pkl', 'wb') as f:
-    pickle.dump([idx_test, attentions], f)
+
+
+# with open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'dynamic_attentions.pkl', 'wb') as f:
+#     pickle.dump([idx_test, attentions], f)

@@ -14,12 +14,12 @@ else:
     import sys
     sys.path.append(str(cwd))
 
-D, samples = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'sim_data.pkl', 'rb'))
 
-idx_test, mean_attentions = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'mean_attentions.pkl', 'rb'))
-idx_test, sum_attentions = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'sum_attentions.pkl', 'rb'))
-idx_test, both_attentions = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'both_attentions.pkl', 'rb'))
-idx_test, dynamic_attentions = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'dynamic_attentions.pkl', 'rb'))
+idx_test, mean_attentions = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'mean_attentions.pkl', 'rb'))
+idx_test, sum_attentions = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'sum_attentions.pkl', 'rb'))
+idx_test, both_attentions = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'both_attentions.pkl', 'rb'))
+idx_test, dynamic_attentions = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'dynamic_attentions.pkl', 'rb'))
 
 
 idx_test = idx_test[:20]
@@ -27,7 +27,8 @@ indexes = [np.where(D['sample_idx'] == idx) for idx in idx_test]
 
 classes = []
 for i in indexes:
-    classes.append(D['class'][i])
+    classes.append([i if i != 2 else 1 for i in D['class'][i]])
+
 
 types = np.concatenate(classes).shape[0] * [0] + np.concatenate(classes).shape[0] * [1] + np.concatenate(classes).shape[0] * [2] + np.concatenate(classes).shape[0] * [3]
 classes = np.concatenate([np.concatenate(classes), np.concatenate(classes) + 2, np.concatenate(classes) + 4, np.concatenate(classes) + 6])
@@ -40,7 +41,6 @@ instance_df = pd.DataFrame({'attention': attention.flat, 'class': classes, 'type
 
 paired = [cm.get_cmap('Paired')(i) for i in range(12) if i not in [4, 5]]
 palette = {0: paired[0], 1: paired[1], 2: paired[2], 3: paired[3], 4: paired[4], 5: paired[5], 6: paired[6], 7: paired[7]}
-
 
 fig = plt.figure()
 ax = fig.add_subplot(111)
@@ -57,8 +57,8 @@ ax.spines['bottom'].set_visible(False)
 ax.spines['left'].set_visible(False)
 ax.set_yticks([])
 ax.set_xticks([])
-ax.set_xlabel('')
 ax.set_ylabel('Attention', fontsize=24, labelpad=-10)
+ax.set_xlabel('')
 ax.get_legend().remove()
-plt.savefig(cwd / 'sim_data' / 'classification' / 'experiment_1' / 'attention.png', dpi=300)
+plt.savefig(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'attention.png', dpi=300)
 

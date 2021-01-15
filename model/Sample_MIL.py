@@ -177,7 +177,7 @@ class RaggedModels:
                     elif self.pooling == 'dynamic':
                         pooling_1, ragged_attention_weights_1 = Ragged.Attention(pooling='mean', regularization=self.regularization)(ragged_hidden[-1])
                         instance_ragged_fused = Ragged.Dense(units=32, activation=tf.keras.activations.relu)((ragged_hidden[-1], pooling_1[:, 0, :]))
-                        pooling_2, ragged_attention_weights = Ragged.Attention(pooling='dynamic', regularization=self.regularization)([[-1], instance_ragged_fused])
+                        pooling_2, ragged_attention_weights = Ragged.Attention(pooling='dynamic', regularization=self.regularization)([ragged_hidden[-1], instance_ragged_fused])
                         pooled_hidden = [pooling_2[:, 0, :]]
                     else:
                         pooling, ragged_attention_weights = Ragged.Attention(pooling=self.pooling, regularization=self.regularization)(ragged_hidden[-1])

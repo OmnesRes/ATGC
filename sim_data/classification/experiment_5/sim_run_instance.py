@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from model.Sample_MIL import InstanceModels, RaggedModels
+from model.Instance_MIL import InstanceModels, RaggedModels
 from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit
 import pickle
@@ -18,7 +18,7 @@ else:
     sys.path.append(str(cwd))
 
 ##load the instance and sample data
-D, samples = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'classification' / 'experiment_5' / 'sim_data.pkl', 'rb'))
 
 ##perform embeddings with a zero vector for index 0
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
@@ -43,7 +43,6 @@ y_strat = np.argmax(y_label, axis=-1)
 
 idx_train, idx_test = next(StratifiedShuffleSplit(random_state=0, n_splits=1, test_size=200).split(y_strat, y_strat))
 idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
-
 
 ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_strat[idx_train]))
 ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=100, ds_size=len(idx_train)))
@@ -73,20 +72,18 @@ ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        y))
 
 
-
 histories = []
 evaluations = []
 weights = []
 for i in range(3):
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='both', pooled_layers=[32, ])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='dynamic')
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='mean')
     losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
     mil.model.compile(loss=losses,
                       metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],
                       optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
                     ))
-    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=25, mode='min', restore_best_weights=True)]
+    callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_categorical_crossentropy', min_delta=0.00001, patience=20, mode='min', restore_best_weights=True)]
     history = mil.model.fit(ds_train, steps_per_epoch=10, validation_data=ds_valid, epochs=10000, callbacks=callbacks)
     evaluation = mil.model.evaluate(ds_test)
     histories.append(history.history)
@@ -94,5 +91,5 @@ for i in range(3):
     weights.append(mil.model.get_weights())
 
 
-with open(cwd / 'sim_data' / 'classification' / 'experiment_2' / 'sample_model_attention_dynamic.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'classification' / 'experiment_5' / 'instance_model_mean.pkl', 'wb') as f:
     pickle.dump([evaluations, histories, weights], f)

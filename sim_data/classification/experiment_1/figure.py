@@ -33,7 +33,8 @@ losses = losses / max(losses)
 
 epochs = np.array([len(i['val_categorical_crossentropy']) - 40 for i in instance_mean_histories + instance_sum_histories]
                   + [len(i['val_categorical_crossentropy']) - 20 for i in sample_mean_histories + sample_sum_histories +\
-                     sample_mean_attention_histories + sample_sum_attention_histories + sample_both_attention_histories + sample_dynamic_attention_histories])
+                     sample_mean_attention_histories + sample_sum_attention_histories +\
+                     sample_both_attention_histories + sample_dynamic_attention_histories])
 epochs = epochs / max(epochs)
 
 paired = [cm.get_cmap('Paired')(i) for i in range(12) if i not in [4, 5]]

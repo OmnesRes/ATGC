@@ -76,7 +76,8 @@ evaluations = []
 weights = []
 for i in range(3):
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='regression', mode='none')
+    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='both', output_type='regression', pooled_layers=[32, ])
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='dynamic', output_type='regression')
     losses = ['mse']
     mil.model.compile(loss=losses,
                       metrics=['mse'],
@@ -90,5 +91,5 @@ for i in range(3):
     weights.append(mil.model.get_weights())
 
 
-with open(cwd / 'sim_data' / 'regression' / 'experiment_3' / 'sample_model_sum.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'regression' / 'experiment_3' / 'sample_model_attention_dynamic.pkl', 'wb') as f:
     pickle.dump([evaluations, histories, weights], f)
