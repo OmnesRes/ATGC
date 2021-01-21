@@ -5,8 +5,8 @@ from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[4], True)
-tf.config.experimental.set_visible_devices(physical_devices[4], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[7], True)
+tf.config.experimental.set_visible_devices(physical_devices[7], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
@@ -86,11 +86,11 @@ ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
 histories = []
 evaluations = []
 weights = []
-for i in range(6):
+for i in range(3):
     sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
     sample_encoder = SampleModels.Type(shape=(), dim=len(np.unique(types)))
-    # mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], sample_layers=[64, ], output_dim=1, pooling='sum', output_type='other')
-    mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], fusion='before', instance_layers=[64, ], output_dim=1, pooling='sum', output_type='other')
+    # mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], sample_layers=[64, ], output_dim=1, pooling='both', output_type='other', pooled_layers=[32, ])
+    mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], fusion='before', output_dim=1, pooling='both', output_type='other', pooled_layers=[32, ])
     losses = ['mse']
     mil.model.compile(loss=losses,
                       metrics=['mse'],
@@ -105,5 +105,5 @@ for i in range(6):
 
 
 
-with open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_after_reg_mon.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_both_before.pkl', 'wb') as f:
     pickle.dump([evaluations, histories, weights], f)

@@ -23,7 +23,7 @@ else:
 D, samples = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sim_data.pkl', 'rb'))
 
 # instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'instance_model_sum.pkl', 'rb'))
-sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sample_model_sum.pkl', 'rb'))
+sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sample_model_attention_dynamic.pkl', 'rb'))
 
 import tensorflow as tf
 # from model.Instance_MIL import InstanceModels, RaggedModels
@@ -73,11 +73,13 @@ cancer_test_ranks = {}
 cancer_test_indexes = {}
 cancer_test_expectation_ranks = {}
 sample_dfs = []
+attentions = []
 
 for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_strat, y_strat)):
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other', mode='none')
+    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='both', output_type='other', pooled_layers=[32, ])
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='dynamic', output_type='other')
     mil.model.set_weights(weights[index])
     y_pred_all = mil.model.predict(ds_all)
     ##get ranks per cancer
@@ -92,6 +94,16 @@ for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random
                                    'predictions': y_pred_all[:, 0][idx_test],
                                    })
     sample_dfs.append(sample_df)
+    ds_test = tf.data.Dataset.from_tensor_slices((idx_test, y_label[idx_test]))
+    ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
+    ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
+                                         three_p_loader(x, ragged_output=True),
+                                         ref_loader(x, ragged_output=True),
+                                         alt_loader(x, ragged_output=True),
+                                         strand_loader(x, ragged_output=True)),
+                                        y))
+
+    attentions.append(mil.attention_model.predict(ds_test).to_list())
 
 
 indexes = np.concatenate(cancer_test_indexes['NA'])
@@ -99,6 +111,6 @@ ranks = np.concatenate(cancer_test_ranks['NA'])
 concordance_index(samples['times'][indexes], ranks, samples['event'][indexes])
 
 
-with open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sample_model_sum_eval.pkl', 'wb') as f:
-    pickle.dump([indexes, ranks, sample_dfs], f)
+with open(cwd / 'sim_data' / 'survival' / 'experiment_1' / 'sample_model_attention_dynamic_eval.pkl', 'wb') as f:
+    pickle.dump([indexes, ranks, sample_dfs, attentions], f)
 

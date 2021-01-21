@@ -2,6 +2,7 @@ import pylab as plt
 import numpy as np
 import pickle
 import pathlib
+from matplotlib import cm
 from lifelines.utils import concordance_index
 
 path = pathlib.Path.cwd()
@@ -18,22 +19,28 @@ D, samples = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / '
 instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'instance_model_sum.pkl', 'rb'))
 sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_sum.pkl', 'rb'))
 sample_sum_attention_evaluations, sample_sum_attention_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_attention_sum.pkl', 'rb'))
+sample_both_attention_evaluations, sample_both_attention_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_attention_both.pkl', 'rb'))
+sample_dynamic_attention_evaluations, sample_dynamic_attention_histories, weights = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_attention_dynamic.pkl', 'rb'))
 
 instance_indexes, instance_ranks, instance_sample_dfs = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'instance_model_sum_eval.pkl', 'rb'))
 sample_sum_indexes, sample_sum_ranks, sample_sum_sample_dfs = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_sum_eval.pkl', 'rb'))
-sample_sum_attention_indexes, sample_sum_attention_ranks, sample_sum_attention_sample_dfs = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_attention_sum_eval.pkl', 'rb'))
+sample_sum_attention_indexes, sample_sum_attention_ranks, sample_sum_attention_sample_dfs, attentions = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_attention_sum_eval.pkl', 'rb'))
+sample_both_attention_indexes, sample_both_attention_ranks, sample_both_attention_sample_dfs, attentions = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_attention_both_eval.pkl', 'rb'))
+sample_dynamic_attention_indexes, sample_dynamic_attention_ranks, sample_dynamic_attention_sample_dfs, attentions = pickle.load(open(cwd / 'sim_data' / 'survival' / 'experiment_2' / 'sample_model_attention_dynamic_eval.pkl', 'rb'))
 
-concordances = np.array([concordance_index(samples['times'][indexes], ranks, samples['event'][indexes]) for indexes, ranks in zip([instance_indexes, sample_sum_indexes, sample_sum_attention_indexes], [instance_ranks, sample_sum_ranks, sample_sum_attention_ranks])])
+concordances = np.array([concordance_index(samples['times'][indexes], ranks, samples['event'][indexes]) for indexes, ranks in zip([instance_indexes, sample_sum_indexes, sample_sum_attention_indexes, sample_both_attention_indexes, sample_dynamic_attention_indexes], [instance_ranks, sample_sum_ranks, sample_sum_attention_ranks, sample_both_attention_ranks, sample_dynamic_attention_ranks])])
 concordances = concordances / max(concordances)
 
-epochs = np.array([len(i['val_coxph']) - 20 for i in instance_sum_histories + sample_sum_histories + sample_sum_attention_histories])
+epochs = np.array([len(i['val_coxph']) - 10 for i in instance_sum_histories + sample_sum_histories + sample_sum_attention_histories + sample_both_attention_histories + sample_dynamic_attention_histories])
 epochs = epochs / max(epochs)
 
-colors_concordances = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
-colors_epochs = ['#1f77b4'] * 5 + ['#ff7f0e'] * 5 + ['#2ca02c'] * 5
+paired = [cm.get_cmap('Paired')(i) for i in range(12) if i not in [4, 5]]
+colors_concordances = [paired[1], paired[3], paired[5], paired[7], paired[9]]
+
+colors_epochs = [paired[1]] * 5 + [paired[3]] * 5 + [paired[5]] * 5 + [paired[7]] * 5 + [paired[9]] * 5
 
 spacer = np.ones_like(concordances)/25
-concordance_centers = [.5 + i * 1.1 for i in range(3)]
+concordance_centers = [.5 + i * 1.1 for i in range(5)]
 fig = plt.figure()
 ax = fig.add_subplot(111)
 fig.subplots_adjust(
@@ -50,7 +57,7 @@ ax.set_ylim(-max(epochs) - .003, max(concordances + spacer) + .003)
 ax.set_yticks([])
 ax.set_xticks([])
 
-epoch_centers = np.concatenate([np.arange(.1, 1.1, .2) + i * 1.1 for i in range(3)])
+epoch_centers = np.concatenate([np.arange(.1, 1.1, .2) + i * 1.1 for i in range(5)])
 ax2 = ax.twinx()
 ax2.bar(epoch_centers, -epochs, edgecolor='k', color=colors_epochs, align='center', linewidth=.5, width=1/5)
 ax2.set_ylim(-max(epochs) - .003, max(concordances + spacer) + .003)

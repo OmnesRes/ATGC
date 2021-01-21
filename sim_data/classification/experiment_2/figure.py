@@ -30,9 +30,12 @@ losses = np.array([i[-1] for i in instance_mean_evaluations + instance_sum_evalu
                    sample_both_attention_evaluations + sample_dynamic_attention_evaluations])
 
 losses = losses / max(losses)
-first_loss = losses[np.arange(0, len(losses), 3)]
-second_loss = losses[np.arange(1, len(losses), 3)]
-third_loss = losses[np.arange(2, len(losses), 3)]
+
+metrics = [-i[1] for i in instance_mean_evaluations + instance_sum_evaluations + \
+                   sample_mean_evaluations + sample_sum_evaluations + \
+                   sample_mean_attention_evaluations + sample_sum_attention_evaluations + \
+                   sample_both_attention_evaluations + sample_dynamic_attention_evaluations]
+
 
 epochs = np.array([len(i['val_categorical_crossentropy']) - 100 for i in instance_mean_histories + instance_sum_histories]
                   + [len(i['val_categorical_crossentropy']) - 25 for i in sample_mean_histories + sample_sum_histories +\
@@ -58,20 +61,20 @@ wspace=0.2)
 ax.bar(centers, losses, edgecolor='k', bottom=spacer, color=colors, align='center', linewidth=.5, width=1)
 
 ax.set_xlim(min(centers) - .51, max(centers) + .51)
-ax.set_ylim(-max(epochs) - .003, max(losses + spacer) + .003)
+ax.set_ylim(-1.003, max(losses + spacer) + .003)
 ax.set_yticks([])
 ax.set_xticks([])
 
 
 ax2 = ax.twinx()
-ax2.bar(centers, -epochs, edgecolor='k', color=colors, align='center', linewidth=.5, width=1)
-ax2.set_ylim(-max(epochs) - .003, max(losses + spacer) + .003)
+ax2.bar(centers, metrics, edgecolor='k', color=colors, align='center', linewidth=.5, width=1)
+ax2.set_ylim(-1.003, max(losses + spacer) + .003)
 ax2.set_xlim(min(centers) - .51, max(centers) + .51)
 ax2.set_yticks([])
 ax2.set_xticks([])
 
 ax.set_ylabel(' ' * 19 + 'Losses', fontsize=24, labelpad=0)
-ax2.set_ylabel(' ' * 19 + 'Epochs', rotation=-90, fontsize=24, labelpad=25)
+ax2.set_ylabel(' ' * 19 + 'Accuracy', rotation=-90, fontsize=24, labelpad=25)
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
 ax.spines['left'].set_visible(False)

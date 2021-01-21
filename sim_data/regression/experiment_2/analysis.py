@@ -55,17 +55,19 @@ ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
 
 
 
-from model.Instance_MIL import InstanceModels, RaggedModels
-evaluations, histories, weights = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'instance_model_sum.pkl', 'rb'))
+from model.Sample_MIL import InstanceModels, RaggedModels
+evaluations, histories, weights = pickle.load(open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'sample_model_attention_dynamic.pkl', 'rb'))
 
 predictions = []
+attentions = []
 for i in range(3):
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other')
+    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='both', output_type='other', pooled_layers=[32, ])
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='dynamic', output_type='other')
     mil.model.set_weights(weights[i])
     predictions.append(mil.model.predict(ds_test))
+    attentions.append(mil.attention_model.predict(ds_test).to_list())
 
 
-
-with open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'instance_model_sum_predictions.pkl', 'wb') as f:
-    pickle.dump([idx_test, predictions], f)
+with open(cwd / 'sim_data' / 'regression' / 'experiment_2' / 'sample_model_attention_dynamic_predictions.pkl', 'wb') as f:
+    pickle.dump([idx_test, predictions, attentions], f)

@@ -17,6 +17,11 @@ sample_sum_before_evaluations, sample_sum_before_histories, weights = pickle.loa
 sample_sum_after_evaluations, sample_sum_after_histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_after.pkl', 'rb'))
 
 
+
+
+
+
+
 losses = np.array([i[-1] for i in sample_sum_before_evaluations + sample_sum_after_evaluations])
 losses = losses / max(losses)
 

@@ -110,7 +110,7 @@ for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random
             callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_coxph', min_delta=0.0001, patience=20, mode='min', restore_best_weights=True)]
             history = mil.model.fit(ds_train, steps_per_epoch=4, validation_data=ds_valid, epochs=10000, callbacks=callbacks)
             y_pred_all = mil.model.predict(ds_all)
-            if concordance_index(samples['times'], np.exp(-1 * y_pred_all[:, 0]), samples['event']) > .52:
+            if concordance_index(samples['times'], np.exp(-1 * y_pred_all[:, 0]), samples['event']) > .6:
                 X = True
                 evaluation = mil.model.evaluate(ds_test)
                 histories.append(history.history)
