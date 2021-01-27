@@ -2,6 +2,7 @@ import pylab as plt
 import numpy as np
 import pickle
 import pathlib
+from matplotlib import cm
 path = pathlib.Path.cwd()
 
 if path.stem == 'ATGC2':
@@ -15,24 +16,28 @@ D, samples = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' 
 
 sample_sum_before_evaluations, sample_sum_before_histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_before.pkl', 'rb'))
 sample_sum_after_evaluations, sample_sum_after_histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_after.pkl', 'rb'))
+sample_both_before_evaluations, sample_both_before_histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_both_before.pkl', 'rb'))
+sample_both_after_evaluations, sample_both_after_histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_both_after.pkl', 'rb'))
+sample_dynamic_before_evaluations, sample_dynamic_before_histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_dynamic_before.pkl', 'rb'))
+sample_dynamic_after_evaluations, sample_dynamic_after_histories, weights = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_dynamic_after.pkl', 'rb'))
 
 
-
-
-
-
-
-losses = np.array([i[-1] for i in sample_sum_before_evaluations + sample_sum_after_evaluations])
+losses = np.array([i[-1] for i in sample_sum_before_evaluations + sample_sum_after_evaluations+\
+                   sample_both_before_evaluations + sample_both_after_evaluations+\
+                   sample_dynamic_before_evaluations + sample_dynamic_after_evaluations])
 losses = losses / max(losses)
 
-epochs = np.array([len(i['val_mse']) - 20 for i in sample_sum_before_histories + sample_sum_after_histories])
+epochs = np.array([len(i['val_mse']) - 20 for i in sample_sum_before_histories + sample_sum_after_histories+\
+                   sample_both_before_histories + sample_both_after_histories +\
+                   sample_dynamic_before_histories + sample_dynamic_after_histories])
 epochs = epochs / max(epochs)
 
+paired = [cm.get_cmap('Paired')(i) for i in range(12) if i not in [4, 5]]
+colors = [paired[0]] * 3 + [paired[1]] * 3 + [paired[2]] * 3 + [paired[3]] * 3 + [paired[4]] * 3 + [paired[5]] * 3 + [paired[6]] * 3 + [paired[7]] * 3
 
-colors = ['#1f77b4'] * 6 + ['#ff7f0e'] * 6
 
 spacer = np.ones_like(losses)/25
-centers = np.concatenate([np.arange(6) + i * 6.2 for i in range(2)])
+centers = np.concatenate([np.arange(3) + i * 3.2 for i in range(6)])
 fig = plt.figure()
 ax = fig.add_subplot(111)
 fig.subplots_adjust(
@@ -44,7 +49,7 @@ hspace=0.2,
 wspace=0.2)
 ax.bar(centers, losses, edgecolor='k', bottom=spacer, color=colors, align='center', linewidth=.5, width=1)
 
-ax.set_xlim(min(centers) - .503, max(centers) + .503)
+ax.set_xlim(min(centers) - .51, max(centers) + .51)
 ax.set_ylim(-max(epochs) - .003, max(losses + spacer) + .003)
 ax.set_yticks([])
 ax.set_xticks([])
@@ -53,7 +58,7 @@ ax.set_xticks([])
 ax2 = ax.twinx()
 ax2.bar(centers, -epochs, edgecolor='k', color=colors, align='center', linewidth=.5, width=1)
 ax2.set_ylim(-max(epochs) - .003, max(losses + spacer) + .003)
-ax2.set_xlim(min(centers) - .503, max(centers) + .503)
+ax2.set_xlim(min(centers) - .51, max(centers) + .51)
 ax2.set_yticks([])
 ax2.set_xticks([])
 

@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 from model.Instance_MIL import InstanceModels, RaggedModels
 from model import DatasetsUtils
+from model.KerasLayers import Losses
 from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 from lifelines.utils import concordance_index
 import pickle
@@ -97,9 +98,9 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
         try:
             tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
             mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='mean', output_type='other')
-            losses = [RaggedModels.losses.CoxPH()]
+            losses = [Losses.CoxPH()]
             mil.model.compile(loss=losses,
-                              metrics=[RaggedModels.losses.CoxPH()],
+                              metrics=[Losses.CoxPH()],
                               optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
                             ))
             callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_coxph', min_delta=0.0001, patience=10, mode='min', restore_best_weights=True)]
