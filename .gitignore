@@ -1,3 +1,5 @@
+*.csv
+*.tsv
 *.idea
 *.svg
 *.pdf
