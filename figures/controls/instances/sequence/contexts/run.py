@@ -1,25 +1,22 @@
 import numpy as np
-import pickle
 import tensorflow as tf
-from tensorflow.python.framework.ops import disable_eager_execution
+from model.Sample_MIL import InstanceModels, RaggedModels
+from model.KerasLayers import Losses, Metrics
 from sklearn.model_selection import StratifiedShuffleSplit
-from sklearn.metrics import confusion_matrix
-disable_eager_execution()
+import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[-1], True)
-tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[3], True)
+tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
 
+from sklearn.metrics import confusion_matrix
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC':
+if path.stem == 'ATGC2':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
     import sys
     sys.path.append(str(cwd))
-
-from model.CustomKerasModels import InputFeatures, ATGC
-from model.CustomKerasTools import BatchGenerator, Losses
 
 D, maf = pickle.load(open(cwd / 'figures' / 'controls' / 'data' / 'data.pkl', 'rb'))
 
@@ -29,12 +26,6 @@ D['contexts'] = np.eye(97)[variant_labels]
 
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
 D['strand_emb'] = strand_emb_mat[D['strand']]
-
-features = [InputFeatures.VariantSequence(6, 4, 2, [64, 64, 64, 64],
-                                          {'5p': D['seq_5p'], '3p': D['seq_3p'], 'ref': D['seq_ref'], 'alt': D['seq_alt'], 'strand': D['strand_emb']},
-                                          use_frame=False, fusion_dimension=128)]
-
-sample_features = []
 
 # set y label and weights
 y_strat = np.arange(97)[np.argwhere(D['contexts'])[:, 1]]
@@ -47,36 +38,67 @@ y_weights /= np.sum(y_weights)
 idx_train, idx_test = list(StratifiedShuffleSplit(n_splits=1, test_size=200000, random_state=0).split(y_strat, y_strat))[0]
 idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300000, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
+batch_size = 50000
+# batch_class_sizes = np.array(list(class_counts.values())) // (sum(class_counts.values()) / batch_size)
 
-atgc = ATGC(features, aggregation_dimension=128, fusion_dimension=128)
-atgc.build_instance_encoder_model(return_latent=False)
-atgc.build_mil_model(output_dim=y_label.shape[1], output_extra=1, output_type='logits', aggregation='none', mil_hidden=())
-metrics = [Losses.Weighted.CrossEntropyfromlogits.cross_entropy, Losses.Weighted.CrossEntropyfromlogits.cross_entropy_weighted, Losses.Weighted.Accuracy.accuracy, Losses.Weighted.Accuracy.accuracy_weighted]
-atgc.mil_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), loss=Losses.Weighted.CrossEntropyfromlogits.cross_entropy_weighted, metrics=metrics)
-callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_cross_entropy', min_delta=0.001, patience=10, mode='min', restore_best_weights=True)]
+ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_weights[idx_train]))
+ds_train = ds_train.batch(batch_size, drop_remainder=True).repeat()
+ds_train = ds_train.map(lambda x, y, z: ((tf.gather(tf.constant(D['seq_5p'], dtype=tf.int32), x),
+                                      tf.gather(tf.constant(D['seq_3p'], dtype=tf.int32), x),
+                                      tf.gather(tf.constant(D['seq_ref'], dtype=tf.int32), x),
+                                      tf.gather(tf.constant(D['seq_alt'], dtype=tf.int32), x),
+                                      tf.gather(tf.constant(D['strand_emb'], dtype=tf.float32), x)
+                                       ),
+                                       y,
+                                       z
+                                       ))
 
-batch_gen_train = BatchGenerator(x_instance_sample_idx=None, x_instance_features=features, x_sample=sample_features,
-                                 y_label=y_label, y_stratification=y_strat, y_weights=y_weights, sampling_approach='subsample', batch_size=50000, idx_sample=idx_train)
+ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, y_label[idx_valid], y_weights[idx_valid]))
+ds_valid = ds_valid.batch(len(idx_valid), drop_remainder=False)
+ds_valid = ds_valid.map(lambda x, y, z: ((tf.gather(tf.constant(D['seq_5p'], dtype=tf.int32), x),
+                                      tf.gather(tf.constant(D['seq_3p'], dtype=tf.int32), x),
+                                      tf.gather(tf.constant(D['seq_ref'], dtype=tf.int32), x),
+                                      tf.gather(tf.constant(D['seq_alt'], dtype=tf.int32), x),
+                                      tf.gather(tf.constant(D['strand_emb'], dtype=tf.float32), x),
+                                       ),
+                                       y,
+                                       z
+                                       ))
 
-data_valid = next(BatchGenerator(x_instance_sample_idx=None, x_instance_features=features, x_sample=sample_features,
-                                 y_label=y_label, y_stratification=y_strat, y_weights=y_weights, sampling_approach=None, idx_sample=idx_valid).data_generator())
 
-data_test = next(BatchGenerator(x_instance_sample_idx=None, x_instance_features=features, x_sample=sample_features,
-                                y_label=y_label, y_stratification=y_strat, y_weights=y_weights, sampling_approach=None, idx_sample=idx_test).data_generator())
+ds_test = tf.data.Dataset.from_tensor_slices((idx_test, y_label[idx_test]))
+ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
+ds_test = ds_test.map(lambda x, y: ((tf.gather(tf.constant(D['seq_5p'], dtype=tf.int32), x),
+                                      tf.gather(tf.constant(D['seq_3p'], dtype=tf.int32), x),
+                                      tf.gather(tf.constant(D['seq_ref'], dtype=tf.int32), x),
+                                      tf.gather(tf.constant(D['seq_alt'], dtype=tf.int32), x),
+                                      tf.gather(tf.constant(D['strand_emb'], dtype=tf.float32), x),
+                                       ),
+                                       y,
+                                      ))
 
-atgc.mil_model.fit(batch_gen_train.data_generator(),
-                   steps_per_epoch=20,
-                   epochs=100000,
-                   validation_data=data_valid,
-                   shuffle=False,
-                   callbacks=callbacks)
+sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8], fusion_dimension=128)
+mil = RaggedModels.MIL(instance_encoders=[], sample_encoders=[sequence_encoder.model], output_dim=y_label.shape[-1], output_type='other', mil_hidden=[128, 128], mode='none')
+losses = [Losses.CrossEntropy()]
+mil.model.compile(loss=losses,
+                  metrics=[Metrics.Accuracy(), Metrics.CrossEntropy()],
+                  weighted_metrics=[Metrics.Accuracy(), Metrics.CrossEntropy()],
+                  optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
+                                                     ))
+
+callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_weighted_CE', min_delta=0.001, patience=10, mode='min', restore_best_weights=True)]
+mil.model.fit(ds_train, steps_per_epoch=200,
+              validation_data=ds_valid,
+              epochs=10000,
+              callbacks=callbacks,
+              )
+
 
 with open(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'contexts' / 'results' / 'weights.pkl', 'wb') as f:
-    pickle.dump(atgc.mil_model.get_weights(), f)
+    pickle.dump(mil.model.get_weights(), f)
 
 
-P = atgc.mil_model.predict(data_test[0])
-P = P[0, :, : -1]
+P = mil.model.predict(ds_test)
 z = np.exp(P - np.max(P, axis=1, keepdims=True))
 predictions = z / np.sum(z, axis=1, keepdims=True)
 
@@ -85,5 +107,5 @@ y_pred = np.argmax(predictions, axis=-1)
 
 matrix = confusion_matrix(y_true, y_pred)
 
-with open(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'contexts' / 'results' / 'weights.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'contexts' / 'results' / 'matrix.pkl', 'wb') as f:
     pickle.dump(matrix, f)

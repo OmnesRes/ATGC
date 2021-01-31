@@ -209,9 +209,11 @@ class Losses:
             losses = self.call(y_true, y_pred)
             # return correct true weighted average if provided sample_weight
             if sample_weight is not None:
-                return tf.reduce_sum(tf.reduce_sum(losses * sample_weight, axis=0) / tf.reduce_sum(sample_weight))
+                return tf.reduce_sum(losses * sample_weight[:, 0], axis=0) / tf.reduce_sum(sample_weight)
             else:
                 return tf.reduce_mean(losses, axis=0)
+
+
 
     class QuantileLoss(tf.keras.losses.Loss):
         def __init__(self, name='quantile_loss', alpha=0.1, weight=0.5):
@@ -229,7 +231,7 @@ class Losses:
             losses = self.call(y_true, y_pred)
             # return correct true weighted average if provided sample_weight
             if sample_weight is not None:
-                return tf.reduce_sum(tf.reduce_sum(losses * sample_weight, axis=0) / tf.reduce_sum(sample_weight) * self.quantiles_weight)
+                return tf.reduce_sum(tf.reduce_sum(losses * sample_weight[:, 0], axis=0) / tf.reduce_sum(sample_weight) * self.quantiles_weight)
             else:
                 return tf.reduce_sum(tf.reduce_mean(losses, axis=0) * self.quantiles_weight)
 
@@ -250,9 +252,48 @@ class Losses:
             return tf.concat(total_losses, axis=-1)
 
         def __call__(self, y_true, y_pred, sample_weight=None):
-            ##sample weights out of order, will have to mask them
+            ##sample weights out of order for multiple cancers, need to reweight based on events. Don't use weighting for now.
             losses = self.call(y_true, y_pred)
             if sample_weight is not None:
-                return tf.reduce_sum(losses * sample_weight) / tf.reduce_sum(sample_weight)
+                return tf.reduce_sum(losses * sample_weight[:, 0]) / tf.reduce_sum(sample_weight)
             else:
                 return tf.reduce_mean(losses)
+
+
+class Metrics:
+    class CrossEntropy(tf.keras.metrics.Metric):
+        def __init__(self, name='CE', from_logits=True):
+            super(Metrics.CrossEntropy, self).__init__(name=name)
+            self.from_logits = from_logits
+            self.CE = self.add_weight(name='CE', initializer=tf.keras.initializers.constant(0.))
+
+        def update_state(self, y_true, y_pred, sample_weight=None):
+            losses = tf.keras.losses.CategoricalCrossentropy(reduction='none', from_logits=self.from_logits)(y_true, y_pred)
+            if sample_weight is not None:
+                self.CE.assign(tf.reduce_sum(losses * sample_weight[:, 0]) / tf.reduce_sum(sample_weight))
+            else:
+                self.CE.assign(tf.reduce_mean(losses))
+
+        def result(self):
+            return self.CE
+
+        def reset_states(self):
+            self.CE.assign(0)
+
+    class Accuracy(tf.keras.metrics.Metric):
+        def __init__(self, name='accuracy'):
+            super(Metrics.Accuracy, self).__init__(name=name)
+            self.accuracy = self.add_weight(name='accuracy', initializer=tf.keras.initializers.constant(0.))
+
+        def update_state(self, y_true, y_pred, sample_weight=None):
+            accuracy = tf.cast(tf.equal(tf.argmax(y_true, axis=-1), tf.argmax(y_pred, axis=-1)), dtype=tf.float32)
+            if sample_weight is not None:
+                self.accuracy.assign(tf.reduce_sum(accuracy * sample_weight[:, 0]) / tf.reduce_sum(sample_weight))
+            else:
+                self.accuracy.assign(tf.reduce_mean(accuracy))
+
+        def result(self):
+            return self.accuracy
+
+        def reset_states(self):
+            self.accuracy.assign(0)

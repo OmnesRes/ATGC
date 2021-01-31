@@ -27,7 +27,7 @@ class InstanceModels:
 
 
     class VariantSequence:
-        def __init__(self, sequence_length, sequence_embedding_dimension, n_strands, convolution_params, fusion_dimension=64, default_activation=tf.keras.activations.relu, use_frame=False):
+        def __init__(self, sequence_length, sequence_embedding_dimension, n_strands, convolution_params, fusion_dimension=64, default_activation=tf.keras.activations.relu, use_frame=False, regularization=.01):
             self.sequence_length = sequence_length
             self.sequence_embedding_dimension = sequence_embedding_dimension
             self.convolution_params = convolution_params
@@ -35,6 +35,7 @@ class InstanceModels:
             self.n_strands = n_strands
             self.use_frame = use_frame
             self.fusion_dimension = fusion_dimension
+            self.regularization=regularization
             self.model = None
             self.build()
 
@@ -57,7 +58,7 @@ class InstanceModels:
                 features[index] = tf.reduce_max(features[index], axis=[1, 2])
 
             fused = tf.concat(features, axis=2)
-            fused = tf.keras.layers.Dense(units=self.fusion_dimension, activation=self.default_activation, kernel_regularizer=tf.keras.regularizers.l2())(fused)
+            fused = tf.keras.layers.Dense(units=self.fusion_dimension, activation=self.default_activation, kernel_regularizer=tf.keras.regularizers.l2(self.regularization))(fused)
             fused = tf.reduce_max(StrandWeight(trainable=True, n_features=fused.shape[2])(strand) * fused, axis=1)
 
             if self.use_frame:
@@ -137,8 +138,8 @@ class SampleModels:
 class RaggedModels:
 
     class MIL:
-        def __init__(self, instance_encoders=[], sample_encoders=[], instance_layers=[], sample_layers=[], pooled_layers=[], output_dim=1, output_type='classification', mode='attention', pooling='sum', regularization=.2, fusion='after'):
-            self.instance_encoders, self.sample_encoders, self.instance_layers, self.sample_layers, self.pooled_layers, self.output_dim, self.output_type, self.mode, self.pooling, self.regularization, self.fusion = instance_encoders, sample_encoders, instance_layers, sample_layers, pooled_layers, output_dim, output_type, mode, pooling, regularization, fusion
+        def __init__(self, instance_encoders=[], sample_encoders=[], instance_layers=[], sample_layers=[], pooled_layers=[], output_dim=1, output_type='classification', mode='attention', pooling='sum', regularization=.2, fusion='after', mil_hidden=[32, 16]):
+            self.instance_encoders, self.sample_encoders, self.instance_layers, self.sample_layers, self.pooled_layers, self.output_dim, self.output_type, self.mode, self.pooling, self.regularization, self.fusion, self.mil_hidden = instance_encoders, sample_encoders, instance_layers, sample_layers, pooled_layers, output_dim, output_type, mode, pooling, regularization, fusion, mil_hidden
             self.model, self.attention_model = None, None
             self.build()
 
@@ -208,8 +209,9 @@ class RaggedModels:
             for i in self.sample_layers:
                 fused.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(fused[-1]))
 
-            fused = tf.keras.layers.Dense(units=32, activation='relu')(fused[-1])
-            fused = tf.keras.layers.Dense(units=16, activation='relu')(fused)
+            for i in self.mil_hidden:
+                fused.append(tf.keras.layers.Dense(units=i, activation='relu')(fused[-1]))
+            fused = fused[-1]
 
             if self.output_type == 'quantiles':
                 output_layers = (8, 1)
@@ -235,7 +237,8 @@ class RaggedModels:
                 ##assumes log transformed output
                 pred = tf.keras.layers.Dense(units=self.output_dim, activation='softplus')(fused)
                 output_tensor = tf.math.log(pred + 1)
-
+            elif self.output_type == 'anlulogits':
+                output_tensor = tf.keras.layers.Dense(units=self.output_dim, activation=Activations.ARU())(fused)
             else:
                 output_tensor = tf.keras.layers.Dense(units=self.output_dim, activation=None)(fused)
 

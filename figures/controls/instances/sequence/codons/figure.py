@@ -3,10 +3,10 @@ import numpy as np
 import pickle
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC':
+if path.stem == 'ATGC2':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
 
 
 labels = ['FSDel', 'FSIns', 'IFDel', 'IFIns', 'Mis', 'Non', 'Silent', 'SS', 'NC']

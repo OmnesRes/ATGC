@@ -3,8 +3,6 @@ import tensorflow as tf
 from sklearn.model_selection import StratifiedKFold
 
 
-
-
 class Apply:
 
     class StratifiedMinibatch:
@@ -52,11 +50,6 @@ class Apply:
             return tf.data.Dataset.from_generator(generator,
                                                   output_types=(ds_input.element_spec[0].dtype, ds_input.element_spec[1].dtype),
                                                   output_shapes=((self.batch_size, ), (self.batch_size, ds_input.element_spec[1].shape[0])))
-
-
-
-
-
 
 
 class Map:

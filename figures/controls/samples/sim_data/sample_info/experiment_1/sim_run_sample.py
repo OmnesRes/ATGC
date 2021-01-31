@@ -18,7 +18,7 @@ else:
     sys.path.append(str(cwd))
 
 ##load the instance and sample data
-D, samples = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'sample_info' / 'experiment_1' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'sim_data' / 'sample_info' / 'experiment_1' / 'sim_data.pkl', 'rb'))
 
 types = np.array(samples['type'])
 
@@ -104,5 +104,5 @@ for i in range(3):
     weights.append(mil.model.get_weights())
 
 
-with open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'sample_info' / 'experiment_1' / 'sample_model_both_after.pkl', 'wb') as f:
+with open(cwd / 'sim_data' / 'sample_info' / 'experiment_1' / 'sample_model_both_after.pkl', 'wb') as f:
     pickle.dump([evaluations, histories, weights], f)
