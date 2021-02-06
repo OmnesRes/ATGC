@@ -62,7 +62,7 @@ y_weights /= np.sum(y_weights)
 
 weights = []
 test_idx = []
-callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_CE', min_delta=0.00001, patience=100, mode='min', restore_best_weights=True)]
+callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_CE', min_delta=0.00001, patience=50, mode='min', restore_best_weights=True)]
 for idx_train, idx_test in StratifiedKFold(n_splits=2, random_state=0).split(y_strat, y_strat):
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=500000, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
@@ -100,7 +100,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=2, random_state=0).split(y_s
 
         mil.model.fit(x=ds_train[0],
                       y=ds_train[1],
-                      batch_size=len(idx_train)//2,
+                      batch_size=len(idx_train) // 4,
                       epochs=1000000,
                       validation_data=ds_valid_batch,
                       shuffle=True,

@@ -1,26 +1,25 @@
 import numpy as np
-import pickle
-import pandas as pd
 import tensorflow as tf
-from tensorflow.python.framework.ops import disable_eager_execution
+import pandas as pd
+from model.Sample_MIL import InstanceModels, RaggedModels
+from model.KerasLayers import Losses, Metrics
+from model import DatasetsUtils
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import r2_score
-disable_eager_execution()
+import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[-1], True)
-tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[3], True)
+tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC':
+if path.stem == 'ATGC2':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
     import sys
     sys.path.append(str(cwd))
 
-from model.CustomKerasModels import InputFeatures, ATGC
-from model.CustomKerasTools import BatchGenerator, Losses
 
 D, samples, maf, sample_df = pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'MSK_468' / 'data' / 'data.pkl', 'rb'))
 panels = pickle.load(open(cwd / 'files' / 'tcga_panel_table.pkl', 'rb'))
@@ -47,44 +46,63 @@ result = np.apply_along_axis(pos_one_hot, -1, D['pos_float'][:, np.newaxis])
 D['pos_bin'] = np.stack(result[:, 0]) + 1
 D['pos_loc'] = np.stack(result[:, 1])
 
-sample_features = ()
+indexes = [np.where(D['sample_idx'] == idx) for idx in range(sample_df.shape[0])]
+
+five_p = np.array([D['seq_5p'][i] for i in indexes], dtype='object')
+three_p = np.array([D['seq_3p'][i] for i in indexes], dtype='object')
+ref = np.array([D['seq_ref'][i] for i in indexes], dtype='object')
+alt = np.array([D['seq_alt'][i] for i in indexes], dtype='object')
+strand = np.array([D['strand_emb'][i] for i in indexes], dtype='object')
+
+five_p_loader = DatasetsUtils.Map.FromNumpy(five_p, tf.int32)
+three_p_loader = DatasetsUtils.Map.FromNumpy(three_p, tf.int32)
+ref_loader = DatasetsUtils.Map.FromNumpy(ref, tf.int32)
+alt_loader = DatasetsUtils.Map.FromNumpy(alt, tf.int32)
+strand_loader = DatasetsUtils.Map.FromNumpy(strand, tf.float32)
+
+pos_loc = np.array([D['pos_loc'][i] for i in indexes], dtype='object')
+pos_bin = np.array([D['pos_bin'][i] for i in indexes], dtype='object')
+chr = np.array([D['chr'][i] for i in indexes], dtype='object')
+
+pos_loader = DatasetsUtils.Map.FromNumpy(pos_loc, tf.float32)
+bin_loader = DatasetsUtils.Map.FromNumpy(pos_bin, tf.float32)
+chr_loader = DatasetsUtils.Map.FromNumpy(chr, tf.int32)
+
+ones_loader = DatasetsUtils.Map.FromNumpy(np.array([np.ones_like(D['pos_loc'])[i] for i in indexes], dtype='object'), tf.float32)
+
+
+loaders = [
+    [ones_loader],
+    [pos_loader, bin_loader, chr_loader],
+    [five_p_loader, three_p_loader, ref_loader, alt_loader, strand_loader],
+]
+
 
 # set y label
 y_label = np.log(sample_df['non_syn_counts'].values/(panels.loc[panels['Panel'] == 'Agilent_kit']['cds'].values[0]/1e6) + 1)[:, np.newaxis]
 y_strat = np.argmax(samples['histology'], axis=-1)
-y_label = np.repeat(y_label, 3, axis=-1)
-metrics = [Losses.Weighted.QuantileLoss.quantile_loss]
 
+losses = [Losses.QuantileLoss()]
+metrics = [Metrics.QuantileLoss()]
 
+encoders = [InstanceModels.PassThrough(shape=(1,)),
+            InstanceModels.VariantPositionBin(24, 100),
+            InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8], fusion_dimension=32)]
 
-all_features = [[InputFeatures.OnesLike({'position': D['pos_float'][:, np.newaxis]})],
-            [InputFeatures.VariantPositionBin(
-                24, 100, {'position_loc': D['pos_loc'], 'position_bin': D['pos_bin'], 'chromosome': D['chr']})],
-            [InputFeatures.VariantSequence(6, 4, 2, [16, 16, 8, 8],
-                                         {'5p': D['seq_5p'], '3p': D['seq_3p'], 'ref': D['seq_ref'], 'alt': D['seq_alt'], 'strand': D['strand_emb'], 'cds': D['cds_emb']},
-                                         fusion_dimension=32,
-                                         use_frame=False)]
-            ]
-
-
-all_weights = [pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'MSK_468' / 'results' / 'run_naive.pkl', 'rb')),
-          pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'MSK_468' / 'results' / 'run_position.pkl', 'rb')),
-           pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'MSK_468' / 'results' / 'run_sequence.pkl', 'rb'))
-            ]
+all_weights = [
+    pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'MSK_468' / 'results' / 'run_naive.pkl', 'rb')),
+    pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'MSK_468' / 'results' / 'run_position.pkl', 'rb')),
+    pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'MSK_468' / 'results' / 'run_sequence.pkl', 'rb'))
+    ]
 
 results = {}
 
-for features, weights, name in zip(all_features, all_weights, [
-    #'naive',
-    #'position',
-    'sequence']):
+for encoder, loaders, weights, name in zip(encoders, loaders, all_weights, ['naive', 'position', 'sequence']):
 
-    atgc = ATGC(features, aggregation_dimension=64, fusion_dimension=32, sample_features=sample_features)
-    atgc.build_instance_encoder_model(return_latent=False)
-    atgc.build_sample_encoder_model()
-    atgc.build_mil_model(output_dim=8, output_extra=1, output_type='quantiles', aggregation='recursion', mil_hidden=(16,))
-    atgc.mil_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), loss=Losses.Weighted.QuantileLoss.quantile_loss_weighted, metrics=metrics)
-
+    mil = RaggedModels.MIL(instance_encoders=[encoder.model], output_dim=1, pooling='sum', mil_hidden=(64, 32, 16), output_type='quantiles', regularization=0)
+    mil.model.compile(loss=losses,
+                      metrics=metrics,
+                      optimizer=tf.keras.optimizers.Adam(learning_rate=0.001))
     ##test eval
     test_idx = []
     predictions = []
@@ -92,13 +110,16 @@ for features, weights, name in zip(all_features, all_weights, [
     evaluations = []
 
     for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=8, random_state=0, shuffle=True).split(y_strat, y_strat)):
-        atgc.mil_model.set_weights(weights[index])
-        data_test = next(BatchGenerator(x_instance_sample_idx=D['sample_idx'], x_instance_features=features, x_sample=sample_features,
-                                         y_label=y_label, y_stratification=y_strat, sampling_approach=None, idx_sample=idx_test).data_generator())
+        mil.model.set_weights(weights[index])
 
+        ds_test = tf.data.Dataset.from_tensor_slices((idx_test, y_label[idx_test]))
+        ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
+        ds_test = ds_test.map(lambda x, y: (tuple([i(x, ragged_output=True) for i in loaders]),
+                                            y,
+                                            ))
 
-        evaluations.append(atgc.mil_model.evaluate(data_test[0], data_test[1])[1])
-        predictions.append(atgc.mil_model.predict(data_test[0])[0, :, :-1])
+        evaluations.append(mil.model.evaluate(ds_test)[1])
+        predictions.append(mil.model.predict(ds_test))
         test_idx.append(idx_test)
 
 
@@ -107,7 +128,7 @@ for features, weights, name in zip(all_features, all_weights, [
     #mae
     print(round(np.mean(np.absolute(y_label[:, 0][np.concatenate(test_idx)] - np.concatenate(predictions)[:, 1])), 4))
     #r2
-    print(round(r2_score(np.concatenate(predictions)[:, 1], y_label[:, 0][np.concatenate(test_idx)]), 4))
+    print(round(r2_score(y_label[:, 0][np.concatenate(test_idx)], np.concatenate(predictions)[:, 1]), 4))
 
     results[name] = np.concatenate(predictions)
 
@@ -133,4 +154,4 @@ print(round(np.mean((y_label[:, 0][np.concatenate(test_idx)] - results['counting
 #mae
 print(round(np.mean(np.absolute((y_label[:, 0][np.concatenate(test_idx)] - results['counting']))), 4))
 #r2
-print(round(r2_score(results['counting'], y_label[np.concatenate(test_idx)][:, 0]), 4))
+print(round(r2_score(y_label[np.concatenate(test_idx)][:, 0], results['counting']), 4))

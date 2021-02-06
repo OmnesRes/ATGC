@@ -75,8 +75,8 @@ ax2.tick_params(length=0, labelsize=12, pad=5)
 [s.set_visible(False) for s in ax2.spines.values()]
 ax2.set_xticks([])
 ax2.set_yticks([])
-ax2.set_ylabel("True Label", fontsize=14)
-ax2.set_xlabel("Predicted Label", fontsize=14)
+ax2.set_ylabel("True Class", fontsize=14)
+ax2.set_xlabel("Predicted Class", fontsize=14)
 cbar = fig.colorbar(figure_matrix, cax=ax3)
-plt.savefig(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'contexts' / 'results' / 'contexts.png', dpi=600)
+plt.savefig(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'contexts' /  'contexts.png', dpi=600)
 

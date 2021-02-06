@@ -1,25 +1,24 @@
 import numpy as np
-import pickle
 import tensorflow as tf
-from tensorflow.python.framework.ops import disable_eager_execution
-from sklearn.model_selection import StratifiedKFold
+from model.Sample_MIL import InstanceModels, RaggedModels
+from model.KerasLayers import Losses, Metrics
+from model import DatasetsUtils
+from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 from sklearn.metrics import classification_report
-disable_eager_execution()
+import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[-1], True)
-tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[5], True)
+tf.config.experimental.set_visible_devices(physical_devices[5], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC':
+if path.stem == 'ATGC2':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
     import sys
     sys.path.append(str(cwd))
 
-from model.CustomKerasModels import InputFeatures, ATGC
-from model.CustomKerasTools import BatchGenerator, Losses
 
 D, maf = pickle.load(open(cwd / 'figures' / 'controls' / 'data' / 'data.pkl', 'rb'))
 sample_df = pickle.load(open(cwd / 'files' / 'tcga_sample_table.pkl', 'rb'))
@@ -43,11 +42,20 @@ result = np.apply_along_axis(pos_one_hot, -1, D['pos_float'][:, np.newaxis])
 D['pos_bin'] = np.stack(result[:, 0]) + 1
 D['pos_loc'] = np.stack(result[:, 1])
 
-features = [InputFeatures.VariantSequence(6, 4, 2, [16, 16, 16, 16],
-                                          {'5p': D['seq_5p'], '3p': D['seq_3p'], 'ref': D['seq_ref'], 'alt': D['seq_alt'], 'strand': D['strand_emb'], 'cds': D['cds_emb']},
-                                          use_frame=False, fusion_dimension=64)
-]
-sample_features = ()
+
+indexes = [np.where(D['sample_idx'] == idx) for idx in range(sample_df.shape[0])]
+
+five_p = np.array([D['seq_5p'][i] for i in indexes], dtype='object')
+three_p = np.array([D['seq_3p'][i] for i in indexes], dtype='object')
+ref = np.array([D['seq_ref'][i] for i in indexes], dtype='object')
+alt = np.array([D['seq_alt'][i] for i in indexes], dtype='object')
+strand = np.array([D['strand_emb'][i] for i in indexes], dtype='object')
+
+five_p_loader = DatasetsUtils.Map.FromNumpy(five_p, tf.int32)
+three_p_loader = DatasetsUtils.Map.FromNumpy(three_p, tf.int32)
+ref_loader = DatasetsUtils.Map.FromNumpy(ref, tf.int32)
+alt_loader = DatasetsUtils.Map.FromNumpy(alt, tf.int32)
+strand_loader = DatasetsUtils.Map.FromNumpy(strand, tf.float32)
 
 
 # set y label and weights
@@ -59,29 +67,32 @@ class_counts = dict(zip(*np.unique(y_strat, return_counts=True)))
 y_weights = np.array([1 / class_counts[_] for _ in y_strat])
 y_weights /= np.sum(y_weights)
 
-atgc = ATGC(features, sample_features=sample_features, aggregation_dimension=64, fusion_dimension=32)
-atgc.build_instance_encoder_model(return_latent=False)
-atgc.build_sample_encoder_model()
-atgc.build_mil_model(output_dim=y_label.shape[1], output_extra=1, output_type='anlulogits', aggregation='recursion', mil_hidden=(16, 8))
-metrics = [Losses.Weighted.CrossEntropyfromlogits.cross_entropy_weighted, Losses.Weighted.Accuracy.accuracy]
-atgc.mil_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001, clipvalue=10000), loss=Losses.Weighted.CrossEntropyfromlogits.cross_entropy_weighted, metrics=metrics)
-callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_cross_entropy_weighted', min_delta=0.0001, patience=20, mode='min', restore_best_weights=True)]
-initial_weights = atgc.mil_model.get_weights()
 
 with open(cwd / 'figures' / 'controls' / 'samples' / 'hotspot' / 'results' / 'weights_braf.pkl', 'rb') as f:
     weights = pickle.load(f)
 
+sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 16, 16])
+mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dim=2, pooling='both', mil_hidden=(64, 32, 16, 8), output_type='anlulogits')
 
 test_idx = []
 predictions = []
-evaluations = []
+attentions = []
 for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=8, random_state=0, shuffle=True).split(y_strat, y_strat)):
-    atgc.mil_model.set_weights(weights[index])
-    data_test = next(BatchGenerator(x_instance_sample_idx=D['sample_idx'], x_instance_features=features, x_sample=sample_features,
-                                     y_label=y_label, y_stratification=y_strat, y_weights=y_weights, sampling_approach=None, idx_sample=idx_test).data_generator())
-    evaluations.append(atgc.mil_model.evaluate(data_test[0], data_test[1]))
-    predictions.append(atgc.mil_model.predict(data_test[0])[0, :, :-1])
+    mil.model.set_weights(weights[index])
+
+    ds_test = tf.data.Dataset.from_tensor_slices((idx_test, y_label[idx_test]))
+    ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
+    ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
+                                           three_p_loader(x, ragged_output=True),
+                                           ref_loader(x, ragged_output=True),
+                                           alt_loader(x, ragged_output=True),
+                                           strand_loader(x, ragged_output=True)),
+                                           y,
+                                          ))
+    predictions.append(mil.model.predict(ds_test))
     test_idx.append(idx_test)
+    attentions.append(mil.attention_model.predict(ds_test).to_list())
+
 
 
 with open(cwd / 'figures' / 'controls' / 'samples' / 'hotspot' / 'results' / 'predictions_braf.pkl', 'wb') as f:
@@ -92,13 +103,6 @@ with open(cwd / 'figures' / 'controls' / 'samples' / 'hotspot' / 'results' / 'pr
 print(classification_report(y_strat[np.concatenate(test_idx, axis=-1)], np.argmax(np.concatenate(predictions, axis=0), axis=-1), digits=4))
 
 
-atgc.mil_model.set_weights(weights[0])
-latent = atgc.intermediate_model.predict(BatchGenerator(x_instance_sample_idx=D['sample_idx'], x_instance_features=features, x_sample=sample_features,
-                                                        y_label=y_label, y_stratification=y_strat, y_weights=y_weights, sampling_approach=None, idx_sample=test_idx[0]).data_generator(), steps=1)
-
-
-print(classification_report(y_strat[np.concatenate(test_idx, axis=-1)], np.argmax(np.concatenate(predictions, axis=0), axis=-1), digits=4))
-
 with open(cwd / 'figures' / 'controls' / 'samples' / 'hotspot' / 'results' / 'latent_braf.pkl', 'wb') as f:
-    pickle.dump(latent, f)
+    pickle.dump(attentions, f)
 

@@ -104,5 +104,5 @@ for i in range(3):
     weights.append(mil.model.get_weights())
 
 
-with open(cwd / 'sim_data' / 'sample_info' / 'experiment_1' / 'sample_model_both_after.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'sample_info' / 'experiment_1' / 'sample_model_both_after.pkl', 'wb') as f:
     pickle.dump([evaluations, histories, weights], f)

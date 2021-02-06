@@ -1,16 +1,24 @@
 import numpy as np
-import pickle
-from model.CustomKerasModels import InputFeatures, ATGC
-from model.CustomKerasTools import BatchGenerator, Losses
 import tensorflow as tf
-from tensorflow.python.framework.ops import disable_eager_execution
+from model.Sample_MIL import InstanceModels, RaggedModels
+from model.KerasLayers import Losses, Metrics
+from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
-from sklearn.metrics import r2_score, classification_report
-import pylab as plt
-disable_eager_execution()
+from sklearn.metrics import classification_report
+import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[6], True)
-tf.config.experimental.set_visible_devices(physical_devices[6], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[5], True)
+tf.config.experimental.set_visible_devices(physical_devices[5], 'GPU')
+
+import pathlib
+path = pathlib.Path.cwd()
+if path.stem == 'ATGC2':
+    cwd = path
+else:
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    import sys
+    sys.path.append(str(cwd))
+
 
 D, maf = pickle.load(open('/home/janaya2/Desktop/ATGC_paper/figures/controls/data/data.pkl', 'rb'))
 sample_df = pickle.load(open('files/tcga_sample_table.pkl', 'rb'))
@@ -34,9 +42,11 @@ result = np.apply_along_axis(pos_one_hot, -1, D['pos_float'][:, np.newaxis])
 D['pos_bin'] = np.stack(result[:, 0]) + 1
 D['pos_loc'] = np.stack(result[:, 1])
 
-features = [InputFeatures.VariantPositionBin(24, 100, {'position_loc': D['pos_loc'], 'position_bin': D['pos_bin'], 'chromosome': D['chr']})]
+indexes = [np.where(D['sample_idx'] == idx) for idx in range(sample_df.shape[0])]
 
-sample_features = ()
+pos_loc = np.array([D['pos_loc'][i] for i in indexes], dtype='object')
+pos_bin = np.array([D['pos_bin'][i] for i in indexes], dtype='object')
+chr = np.array([D['chr'][i] for i in indexes], dtype='object')
 
 # set y label and weights
 genes = maf['Hugo_Symbol'].values
@@ -49,61 +59,56 @@ class_counts = dict(zip(*np.unique(y_strat, return_counts=True)))
 y_weights = np.array([1 / class_counts[_] for _ in y_strat])
 y_weights /= np.sum(y_weights)
 
-atgc = ATGC(features, sample_features=sample_features, aggregation_dimension=128, fusion_dimension=64)
-atgc.build_instance_encoder_model(return_latent=False)
-atgc.build_sample_encoder_model()
-atgc.build_mil_model(output_dim=y_label.shape[1], output_extra=1, output_type='anlulogits', aggregation='recursion', mil_hidden=(16, 8))
-metrics = [Losses.Weighted.CrossEntropyfromlogits.cross_entropy_weighted, Losses.Weighted.Accuracy.accuracy]
-atgc.mil_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001, clipvalue=10000), loss=Losses.Weighted.CrossEntropyfromlogits.cross_entropy_weighted, metrics=metrics)
-callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_cross_entropy_weighted', min_delta=0.0001, patience=50, mode='min', restore_best_weights=True)]
-
+pos_loader = DatasetsUtils.Map.FromNumpy(pos_loc, tf.float32)
+bin_loader = DatasetsUtils.Map.FromNumpy(pos_bin, tf.float32)
+chr_loader = DatasetsUtils.Map.FromNumpy(chr, tf.int32)
 
 with open('figures/controls/samples/suppressor/results/weights.pkl', 'rb') as f:
     weights = pickle.load(f)
 
+position_encoder = InstanceModels.VariantPositionBin(24, 100)
+mil = RaggedModels.MIL(instance_encoders=[position_encoder.model], output_dim=2, pooling='sum', mil_hidden=(64, 32, 16, 8), output_type='anlulogits', regularization=0)
 
 test_idx = []
 predictions = []
-evaluations = []
+attentions = []
 for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=8, random_state=0, shuffle=True).split(y_strat, y_strat)):
+    mil.model.set_weights(weights[index])
 
-    atgc.mil_model.set_weights(weights[index])
-    data_test = next(BatchGenerator(x_instance_sample_idx=D['sample_idx'], x_instance_features=features, x_sample=sample_features,
-                                     y_label=y_label, y_stratification=y_strat, y_weights=y_weights, sampling_approach=None, idx_sample=idx_test).data_generator())
-    evaluations.append(atgc.mil_model.evaluate(data_test[0], data_test[1]))
-    predictions.append(atgc.mil_model.predict(data_test[0])[0, :, :-1])
+    ds_test = tf.data.Dataset.from_tensor_slices((idx_test, y_label[idx_test]))
+    ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
+    ds_test = ds_test.map(lambda x, y: ((pos_loader(x, ragged_output=True),
+                                           bin_loader(x, ragged_output=True),
+                                           chr_loader(x, ragged_output=True),
+                                           ),
+                                           y,
+                                           ))
+
+    predictions.append(mil.model.predict(ds_test))
     test_idx.append(idx_test)
+    # attentions.append(mil.attention_model.predict(ds_test).to_list())
 
-with open('figures/controls/samples/suppressor/results/predictions.pkl', 'wb') as f:
-    pickle.dump([y_strat, test_idx, predictions], f)
-
-
-
-atgc.mil_model.set_weights(weights[0])
-latent = atgc.intermediate_model.predict(BatchGenerator(x_instance_sample_idx=D['sample_idx'], x_instance_features=features, x_sample=sample_features,
-                                y_label=y_label, y_stratification=y_strat, y_weights=y_weights, sampling_approach=None, idx_sample=test_idx[0]).data_generator(), steps=1)
-
-
-with open('figures/controls/samples/suppressor/results/latent.pkl', 'wb') as f:
-    pickle.dump(latent, f)
+# with open('figures/controls/samples/suppressor/results/predictions.pkl', 'wb') as f:
+#     pickle.dump([y_strat, test_idx, predictions], f)
+#
+#
+#
+# with open('figures/controls/samples/suppressor/results/latent.pkl', 'wb') as f:
+#     pickle.dump(attentions, f)
+#
 
 
-# # # #
-# print(classification_report(y_strat[np.concatenate(test_idx, axis=-1)], np.argmax(np.concatenate(predictions, axis=0), axis=-1), digits=4))
-# # #
+print(classification_report(y_strat[np.concatenate(test_idx, axis=-1)], np.argmax(np.concatenate(predictions, axis=0), axis=-1), digits=4))
+
+#
 # #
-# plt.hist(latent, bins=100)
-# plt.ylim(0, 1000)
-# plt.show()
+# test=maf.iloc[np.concatenate(np.array([np.where(D['sample_idx'] == i)[0] for i in range(y_label.shape[0])])[test_idx[0]], axis=-1)]['Hugo_Symbol'][np.concatenate(attentions[0]).flat > .5]
 #
-# # #
-# test=maf.iloc[np.concatenate(np.array([np.where(D['sample_idx'] == i)[0] for i in range(y_label.shape[0])])[test_idx[0]], axis=-1)]['Hugo_Symbol'][latent[:, 0] > .5]
-#
-# sorted(list(zip(latent[latent[:, 0] > .5],
+# sorted(list(zip(np.concatenate(attentions[0]).flat[np.concatenate(attentions[0]).flat > .5],
 #                 test,
-#                 D['pos_bin'][np.concatenate(np.array([np.where(D['sample_idx'] == i)[0] for i in range(y_label.shape[0])])[test_idx[0]], axis=-1)][latent[:, 0] > .5],
-#                 D['pos_loc'][:,0][np.concatenate(np.array([np.where(D['sample_idx'] == i)[0] for i in range(y_label.shape[0])])[test_idx[0]], axis=-1)][latent[:, 0] > .5])))
+#                 D['pos_bin'][np.concatenate(np.array([np.where(D['sample_idx'] == i)[0] for i in range(y_label.shape[0])])[test_idx[0]], axis=-1)][np.concatenate(attentions[0]).flat > .5],
+#                 D['pos_loc'][:,0][np.concatenate(np.array([np.where(D['sample_idx'] == i)[0] for i in range(y_label.shape[0])])[test_idx[0]], axis=-1)][np.concatenate(attentions[0]).flat> .5])))
 #
-
-
+#
+#
 

@@ -61,7 +61,7 @@ idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_
 
 batch_size = 50000
 ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_weights[idx_train]))
-ds_train = ds_train.batch(batch_size, drop_remainder=True).repeat()
+ds_train = ds_train.shuffle(len(idx_train), reshuffle_each_iteration=True).batch(batch_size, drop_remainder=True).repeat()
 ds_train = ds_train.map(lambda x, y, z: ((tf.gather(tf.constant(D['seq_5p'], dtype=tf.int32), x),
                                       tf.gather(tf.constant(D['seq_3p'], dtype=tf.int32), x),
                                       tf.gather(tf.constant(D['seq_ref'], dtype=tf.int32), x),

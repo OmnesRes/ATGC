@@ -2,5 +2,3 @@ MSIpred is available from https://github.com/wangc29/MSIpred
 
 To install with Python 3 we altered a print statement in "raw_maf.py"
 To allow the model to output probabilities we set "probability=True" for the SVC in "model_training.py"
-
-An older ATGC model is available in this directory in case breaking updates occur in the main model.

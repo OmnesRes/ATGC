@@ -6,8 +6,8 @@ from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[7], True)
-tf.config.experimental.set_visible_devices(physical_devices[7], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[3], True)
+tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
@@ -71,7 +71,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=8, random_state=0, shuffle=T
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=1000, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
     ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_strat[idx_train]))
-    ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=len(idx_train) // 2, ds_size=len(idx_train)))
+    ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=1000, ds_size=len(idx_train)))
     ds_train = ds_train.map(lambda x, y: ((pos_loader(x, ragged_output=True),
                                            bin_loader(x, ragged_output=True),
                                            chr_loader(x, ragged_output=True),
@@ -92,7 +92,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=8, random_state=0, shuffle=T
 
     while True:
         position_encoder = InstanceModels.VariantPositionBin(24, 100)
-        mil = RaggedModels.MIL(instance_encoders=[position_encoder.model], output_dim=2, pooling='both', mil_hidden=(128, 64, 16, 8), output_type='anlulogits')
+        mil = RaggedModels.MIL(instance_encoders=[position_encoder.model], output_dim=2, pooling='sum', mil_hidden=(128, 64, 16, 8), output_type='anlulogits')
 
         mil.model.compile(loss=losses,
                           metrics=[Metrics.CrossEntropy(), Metrics.Accuracy()],

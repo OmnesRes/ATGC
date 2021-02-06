@@ -22,21 +22,6 @@ class Embed(tf.keras.layers.Layer):
         return tf.gather(self.embedding_matrix_padded, inputs, axis=0)
 
 
-
-#
-#
-# class ActivationFunctions:
-#
-#     @staticmethod
-#     def aisru(x, lower_asymptote, upper_asymptote, lower_alpha, upper_alpha):
-#         x_2 = x ** 2
-#         lower_sqrt = (lower_alpha + x_2) ** (1 / 2)
-#         upper_sqrt = (upper_alpha + x_2) ** (1 / 2)
-#         return lower_asymptote + ((upper_asymptote - lower_asymptote) * ((x + lower_sqrt) / (lower_sqrt + upper_sqrt)))
-#
-
-
-
 class Activations:
 
     class ASU(tf.keras.layers.Layer):
@@ -184,7 +169,7 @@ class Ragged:
                     pooled = tf.reduce_sum(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
                                                                      [tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
                                                                       tf.ragged.map_flat_values(tf.expand_dims, inputs, axis=1)]), axis=1)
-                    pooled = pooled / tf.expand_dims(tf.reduce_sum(attention_weights, axis=1), axis=-1)
+                    pooled = pooled / tf.expand_dims(tf.reduce_sum(attention_weights, axis=1) + .000000001, axis=-1)
                 else:
                     pooled = tf.reduce_sum(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
                                                                         [tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
@@ -216,7 +201,7 @@ class Losses:
 
 
     class QuantileLoss(tf.keras.losses.Loss):
-        def __init__(self, name='quantile_loss', alpha=0.1, weight=0.5):
+        def __init__(self, name='QL', alpha=0.05, weight=0.5):
             super(Losses.QuantileLoss, self).__init__(name=name)
             self.quantiles = tf.constant(((alpha / 2), 0.5, 1 - (alpha / 2)))
             self.quantiles_weight = tf.constant([weight / 2, 1 - weight, weight / 2])
@@ -233,7 +218,8 @@ class Losses:
             if sample_weight is not None:
                 return tf.reduce_sum(tf.reduce_sum(losses * sample_weight[:, 0], axis=0) / tf.reduce_sum(sample_weight) * self.quantiles_weight)
             else:
-                return tf.reduce_sum(tf.reduce_mean(losses, axis=0) * self.quantiles_weight)
+                # return tf.reduce_sum(tf.reduce_mean(losses, axis=0) * self.quantiles_weight)
+                return tf.reduce_sum(tf.reduce_mean(losses, axis=0))
 
     class CoxPH(tf.keras.losses.Loss):
         def __init__(self, name='coxph', cancers=1):
@@ -297,3 +283,28 @@ class Metrics:
 
         def reset_states(self):
             self.accuracy.assign(0)
+
+    class QuantileLoss(tf.keras.metrics.Metric):
+        def __init__(self, name='QL', alpha=0.05, weight=0.5):
+            super(Metrics.QuantileLoss, self).__init__(name=name)
+            self.quantiles = tf.constant(((alpha / 2), 0.5, 1 - (alpha / 2)))
+            self.quantiles_weight = tf.constant([weight / 2, 1 - weight, weight / 2])
+            self.QL = self.add_weight(name='QL', initializer=tf.keras.initializers.constant(0.))
+
+        def update_state(self, y_true, y_pred, sample_weight=None):
+            # per sample losses across the quantiles
+            residual = y_true - y_pred
+            losses = residual * (self.quantiles[tf.newaxis, :] - tf.cast(tf.less(residual, 0.), tf.float32))
+
+            if sample_weight is not None:
+                self.QL.assign(tf.reduce_sum(tf.reduce_sum(losses * sample_weight[:, 0], axis=0) / tf.reduce_sum(sample_weight) * self.quantiles_weight))
+            else:
+                # self.QL.assign(tf.reduce_sum(tf.reduce_mean(losses, axis=0) * self.quantiles_weight))
+                self.QL.assign(tf.reduce_sum(tf.reduce_mean(losses, axis=0)))
+
+        def result(self):
+            return self.QL
+
+        def reset_states(self):
+            self.QL.assign(0)
+

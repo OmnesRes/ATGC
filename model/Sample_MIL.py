@@ -223,7 +223,7 @@ class RaggedModels:
                     for i in range(len(output_layers)):
                         l.append(tf.keras.layers.Dense(units=output_layers[i], activation=tf.keras.activations.softplus)(fused if i == 0 else l[-1]))
 
-                output_tensor = tf.math.log(tf.keras.activations.softplus(tf.concat([point_estimate[-1] - lower_bound[-1], point_estimate[-1], point_estimate[-1] + upper_bound[-1]], axis=1)) + 1)
+                output_tensor = tf.keras.activations.softplus(tf.concat([point_estimate[-1] - lower_bound[-1], point_estimate[-1], point_estimate[-1] + upper_bound[-1]], axis=1))
 
             elif self.output_type == 'survival':
                 output_layers = (8, 4, 1)
@@ -237,8 +237,15 @@ class RaggedModels:
                 ##assumes log transformed output
                 pred = tf.keras.layers.Dense(units=self.output_dim, activation='softplus')(fused)
                 output_tensor = tf.math.log(pred + 1)
+
             elif self.output_type == 'anlulogits':
                 output_tensor = tf.keras.layers.Dense(units=self.output_dim, activation=Activations.ARU())(fused)
+
+            elif self.output_type == 'classification_probability':
+                probabilities = tf.keras.layers.Dense(units=self.output_dim, activation=Activations.ARU())(fused)
+                probabilities = probabilities / tf.expand_dims(tf.reduce_sum(probabilities, axis=-1), axis=-1)
+                output_tensor = probabilities
+
             else:
                 output_tensor = tf.keras.layers.Dense(units=self.output_dim, activation=None)(fused)
 

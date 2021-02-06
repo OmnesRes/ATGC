@@ -52,6 +52,24 @@ class Apply:
                                                   output_shapes=((self.batch_size, ), (self.batch_size, ds_input.element_spec[1].shape[0])))
 
 
+
+    class SubSample:
+        def __init__(self, batch_size, ds_size):
+            self.batch_size = batch_size
+            self.ds_size = ds_size
+        def __call__(self, ds_input: tf.data.Dataset):
+            def generator():
+                # expecting ds of (idx, y_true)
+                idx, y_true = list(map(tf.stack, list(map(list, zip(*list(ds_input))))))
+                while True:
+                    batch_idx = np.random.choice(np.arange(self.ds_size), self.batch_size, replace=False)
+                    yield tf.gather(idx, batch_idx, axis=0), tf.gather(y_true, batch_idx, axis=0)
+
+            return tf.data.Dataset.from_generator(generator,
+                                                  output_types=(ds_input.element_spec[0].dtype, ds_input.element_spec[1].dtype),
+                                                  output_shapes=((None, ), (None, ds_input.element_spec[1].shape[0])))
+
+
 class Map:
 
     class LoadBatchByIndices:

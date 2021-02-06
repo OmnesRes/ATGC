@@ -32,7 +32,7 @@ def make_colormap(colors):
     return mymap
 
 
-with open(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'codons' / 'results' / 'matrix_with_frame.pkl', 'rb') as f:
+with open(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'codons' / 'results' / 'matrix_no_frame.pkl', 'rb') as f:
     matrix = pickle.load(f)
 
 fig = plt.figure()
@@ -85,4 +85,4 @@ ax4.spines['right'].set_visible(False)
 ax4.spines['left'].set_visible(False)
 ax4.spines['top'].set_visible(False)
 cbar = fig.colorbar(figure_matrix, cax=ax3, ticks=[0, .2, .4, .6, .8, 1])
-plt.savefig(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'codons' / 'codons_with_frame.png', dpi=600)
+plt.savefig(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'codons' / 'codons_no_frame.png', dpi=600)

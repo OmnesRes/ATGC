@@ -57,14 +57,23 @@ y_weights /= np.sum(y_weights)
 
 
 weights = []
-callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_CE', min_delta=0.0001, patience=20, mode='min', restore_best_weights=True)]
-losses = [Losses.CrossEntropy()]
+callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_CE', min_delta=0.0001, patience=50, mode='min', restore_best_weights=True)]
+losses = [Losses.CrossEntropy(from_logits=False)]
+sequence_encoder = InstanceModels.VariantSequence(20, 4, 2, [8, 8, 8, 8])
+mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dim=2, pooling='sum', mil_hidden=(64, 64, 32, 16), output_type='classification_probability')
+mil.model.compile(loss=losses,
+                  metrics=[Metrics.CrossEntropy(from_logits=False), Metrics.Accuracy()],
+                  optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
+                                                     clipvalue=10000))
+initial_weights = mil.model.get_weights()
+
 ##stratified K fold for test
 for idx_train, idx_test in StratifiedKFold(n_splits=9, random_state=0, shuffle=True).split(y_strat, y_strat):
+    ##due to the y_strat levels not being constant this idx_train/idx_valid split is not deterministic
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
     ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train]))
-    ds_train = ds_train.batch(128, drop_remainder=True).repeat()
+    ds_train = ds_train.apply(DatasetsUtils.Apply.SubSample(batch_size=128, ds_size=len(idx_train)))
     ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                            three_p_loader(x, ragged_output=True),
                                            ref_loader(x, ragged_output=True),
@@ -84,17 +93,27 @@ for idx_train, idx_test in StratifiedKFold(n_splits=9, random_state=0, shuffle=T
                                            ))
 
     while True:
-        sequence_encoder = InstanceModels.VariantSequence(20, 4, 2, [8, 8, 8, 8])
-        mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dim=2, pooling='both', mil_hidden=(64, 64, 32, 16), output_type='anlulogits')
-        mil.model.compile(loss=losses,
-                          metrics=[Metrics.CrossEntropy(), Metrics.Accuracy()],
-                          optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
-                                                             clipvalue=10000))
+        mil.model.set_weights(initial_weights)
+        mil.model.fit(ds_train,
+                      steps_per_epoch=10,
+                      validation_data=ds_valid,
+                      epochs=10000,
+                      callbacks=callbacks,
+                      workers=4)
 
         eval = mil.model.evaluate(ds_valid)
         if eval[1] < .07:
             break
+        else:
+            sequence_encoder = InstanceModels.VariantSequence(20, 4, 2, [8, 8, 8, 8])
+            mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dim=2, pooling='sum', mil_hidden=(64, 64, 32, 16), output_type='classification_probability')
+            mil.model.compile(loss=losses,
+                              metrics=[Metrics.CrossEntropy(from_logits=False), Metrics.Accuracy()],
+                              optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
+                                                                 clipvalue=10000))
+            initial_weights = mil.model.get_weights()
     weights.append(mil.model.get_weights())
+
 
 
 with open(cwd / 'figures' / 'msi' / 'results' / 'run.pkl', 'wb') as f:

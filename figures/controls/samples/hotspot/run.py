@@ -6,8 +6,8 @@ from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[3], True)
-tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[2], True)
+tf.config.experimental.set_visible_devices(physical_devices[2], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
@@ -95,7 +95,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=8, random_state=0, shuffle=T
 
     while True:
         sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 16, 16])
-        mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dim=2, pooling='both', mil_hidden=(64, 32, 16, 8), output_type='anlulogits')
+        mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dim=2, pooling='sum', mil_hidden=(64, 32, 16, 8), output_type='anlulogits')
 
         mil.model.compile(loss=losses,
                           metrics=[Metrics.CrossEntropy(), Metrics.Accuracy()],
