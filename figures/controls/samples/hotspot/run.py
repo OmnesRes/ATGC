@@ -6,8 +6,8 @@ from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[2], True)
-tf.config.experimental.set_visible_devices(physical_devices[2], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()

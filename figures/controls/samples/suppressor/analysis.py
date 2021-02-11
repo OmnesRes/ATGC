@@ -7,8 +7,8 @@ from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 from sklearn.metrics import classification_report
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[5], True)
-tf.config.experimental.set_visible_devices(physical_devices[5], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
@@ -72,6 +72,7 @@ mil = RaggedModels.MIL(instance_encoders=[position_encoder.model], output_dim=2,
 test_idx = []
 predictions = []
 attentions = []
+instance_labels = []
 for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=8, random_state=0, shuffle=True).split(y_strat, y_strat)):
     mil.model.set_weights(weights[index])
 
@@ -86,17 +87,14 @@ for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=8, random
 
     predictions.append(mil.model.predict(ds_test))
     test_idx.append(idx_test)
-    # attentions.append(mil.attention_model.predict(ds_test).to_list())
+    attentions.append(mil.attention_model.predict(ds_test).to_list())
+    instance_labels.append(genes[np.concatenate(np.array(indexes, dtype=object)[idx_test].tolist(), axis=1)[0]] == 'PTEN')
 
-# with open('figures/controls/samples/suppressor/results/predictions.pkl', 'wb') as f:
-#     pickle.dump([y_strat, test_idx, predictions], f)
-#
-#
-#
-# with open('figures/controls/samples/suppressor/results/latent.pkl', 'wb') as f:
-#     pickle.dump(attentions, f)
-#
+with open('figures/controls/samples/suppressor/results/predictions.pkl', 'wb') as f:
+    pickle.dump([y_strat, test_idx, predictions], f)
 
+with open('figures/controls/samples/suppressor/results/latent.pkl', 'wb') as f:
+    pickle.dump([attentions, instance_labels], f)
 
 print(classification_report(y_strat[np.concatenate(test_idx, axis=-1)], np.argmax(np.concatenate(predictions, axis=0), axis=-1), digits=4))
 
@@ -108,7 +106,7 @@ print(classification_report(y_strat[np.concatenate(test_idx, axis=-1)], np.argma
 #                 test,
 #                 D['pos_bin'][np.concatenate(np.array([np.where(D['sample_idx'] == i)[0] for i in range(y_label.shape[0])])[test_idx[0]], axis=-1)][np.concatenate(attentions[0]).flat > .5],
 #                 D['pos_loc'][:,0][np.concatenate(np.array([np.where(D['sample_idx'] == i)[0] for i in range(y_label.shape[0])])[test_idx[0]], axis=-1)][np.concatenate(attentions[0]).flat> .5])))
-#
-#
-#
+
+
+
 

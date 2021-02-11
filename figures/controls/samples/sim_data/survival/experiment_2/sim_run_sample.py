@@ -7,8 +7,8 @@ from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 from lifelines.utils import concordance_index
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[3], True)
-tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
@@ -68,10 +68,7 @@ for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
     ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_strat[idx_train]))
-    # ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train]))
-
     ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=250, ds_size=len(idx_train)))
-    # ds_train = ds_train.batch(len(idx_train), drop_remainder=False)
     ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                            three_p_loader(x, ragged_output=True),
                                            ref_loader(x, ragged_output=True),

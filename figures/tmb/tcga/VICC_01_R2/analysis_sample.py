@@ -21,7 +21,7 @@ else:
     sys.path.append(str(cwd))
 
 
-D, samples, maf, sample_df = pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'MSK_468' / 'data' / 'data.pkl', 'rb'))
+D, samples, maf, sample_df = pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'VICC_01_R2' / 'data' / 'data.pkl', 'rb'))
 panels = pickle.load(open(cwd / 'files' / 'tcga_panel_table.pkl', 'rb'))
 
 
@@ -48,7 +48,7 @@ metrics = [Metrics.QuantileLoss()]
 pass_encoder = InstanceModels.PassThrough(shape=(1,))
 type_encoder = SampleModels.Type(shape=(), dim=max(y_strat) + 1)
 
-weights = pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'MSK_468' / 'results' / 'run_naive_sample_tcga.pkl', 'rb'))
+weights = pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'VICC_01_R2' / 'results' / 'run_naive_sample_tcga.pkl', 'rb'))
 
 mil = RaggedModels.MIL(sample_encoders=[pass_encoder.model, type_encoder.model], output_dim=1, mil_hidden=(64, 32, 16), output_type='quantiles', regularization=0, mode='none')
 

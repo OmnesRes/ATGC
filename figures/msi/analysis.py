@@ -9,8 +9,8 @@ import pandas as pd
 from sklearn.metrics import precision_score, recall_score, average_precision_score, precision_recall_curve, classification_report
 # import MSIpred as mp
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[7], True)
-tf.config.experimental.set_visible_devices(physical_devices[7], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()

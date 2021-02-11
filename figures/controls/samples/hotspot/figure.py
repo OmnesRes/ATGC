@@ -1,5 +1,6 @@
 import pylab as plt
 import numpy as np
+from matplotlib import cm
 import pickle
 import pathlib
 path = pathlib.Path.cwd()
@@ -9,12 +10,16 @@ else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
 
 with open(cwd / 'figures' / 'controls' / 'samples' / 'hotspot' / 'results' / 'latent_braf.pkl', 'rb') as f:
-    latent = pickle.load(f)
+    latent, labels = pickle.load(f)
 
+paired = [cm.get_cmap('Paired')(i) for i in range(12) if i not in [4, 5]]
+
+fold = 0
 fig = plt.figure()
 ax = fig.add_subplot(111)
-ax.hist(np.concatenate(latent[0]).flat, bins=200, edgecolor='#1f77b4', color='#1f77b4', align='mid', linewidth=2)
-ax.set_yscale('log', basey=10)
+n, bins, patches = ax.hist(np.concatenate(latent[fold]).flat[~np.array(labels[fold])], bins=200, range=(0, 1), edgecolor=paired[2], color=paired[2], align='mid', linewidth=1)
+ax.hist(np.concatenate(latent[fold]).flat[labels[fold]], bins=bins, edgecolor=paired[3], color=paired[3], align='mid', linewidth=1)
+ax.set_yscale('log', base=10)
 ax.set_ylim(1, 10**6)
 ax.set_xlim(0, 1)
 ax.spines['bottom'].set_bounds(0, 1)

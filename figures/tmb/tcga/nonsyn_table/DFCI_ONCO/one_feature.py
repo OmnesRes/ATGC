@@ -6,8 +6,8 @@ from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[3], True)
-tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
@@ -18,21 +18,8 @@ else:
     import sys
     sys.path.append(str(cwd))
 
-
-D, samples, maf, sample_df = pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'MSK_468' / 'data' / 'data.pkl', 'rb'))
+D, samples, maf, sample_df = pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'nonsyn_table' / 'DFCI_ONCO' / 'data' / 'data.pkl', 'rb'))
 panels = pickle.load(open(cwd / 'files' / 'tcga_panel_table.pkl', 'rb'))
-
-strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
-D['strand_emb'] = strand_emb_mat[D['strand']]
-
-chr_emb_mat = np.concatenate([np.zeros(24)[np.newaxis, :], np.diag(np.ones(24))], axis=0)
-D['chr_emb'] = chr_emb_mat[D['chr']]
-
-frame_emb_mat = np.concatenate([np.zeros(3)[np.newaxis, :], np.diag(np.ones(3))], axis=0)
-D['cds_emb'] = frame_emb_mat[D['cds']]
-
-hist_emb_mat = np.concatenate([np.zeros(samples['histology'].shape[1])[np.newaxis, :], np.diag(np.ones(samples['histology'].shape[1]))], axis=0)
-samples['hist_emb'] = hist_emb_mat[np.argmax(samples['histology'], axis=-1)]
 
 ##bin position
 def pos_one_hot(pos):
@@ -44,31 +31,9 @@ result = np.apply_along_axis(pos_one_hot, -1, D['pos_float'][:, np.newaxis])
 D['pos_bin'] = np.stack(result[:, 0]) + 1
 D['pos_loc'] = np.stack(result[:, 1])
 
-
 indexes = [np.where(D['sample_idx'] == idx) for idx in range(sample_df.shape[0])]
 
-five_p = np.array([D['seq_5p'][i] for i in indexes], dtype='object')
-three_p = np.array([D['seq_3p'][i] for i in indexes], dtype='object')
-ref = np.array([D['seq_ref'][i] for i in indexes], dtype='object')
-alt = np.array([D['seq_alt'][i] for i in indexes], dtype='object')
-strand = np.array([D['strand_emb'][i] for i in indexes], dtype='object')
-
-five_p_loader = DatasetsUtils.Map.FromNumpy(five_p, tf.int32)
-three_p_loader = DatasetsUtils.Map.FromNumpy(three_p, tf.int32)
-ref_loader = DatasetsUtils.Map.FromNumpy(ref, tf.int32)
-alt_loader = DatasetsUtils.Map.FromNumpy(alt, tf.int32)
-strand_loader = DatasetsUtils.Map.FromNumpy(strand, tf.float32)
-
-pos_loc = np.array([D['pos_loc'][i] for i in indexes], dtype='object')
-pos_bin = np.array([D['pos_bin'][i] for i in indexes], dtype='object')
-chr = np.array([D['chr'][i] for i in indexes], dtype='object')
-
-pos_loader = DatasetsUtils.Map.FromNumpy(pos_loc, tf.float32)
-bin_loader = DatasetsUtils.Map.FromNumpy(pos_bin, tf.float32)
-chr_loader = DatasetsUtils.Map.FromNumpy(chr, tf.int32)
-
 ones_loader = DatasetsUtils.Map.FromNumpy(np.array([np.ones_like(D['pos_loc'])[i] for i in indexes], dtype='object'), tf.float32)
-
 
 # set y label
 y_label = np.log(sample_df['non_syn_counts'].values / (panels.loc[panels['Panel'] == 'Agilent_kit']['cds'].values[0]/1e6) + 1)[:, np.newaxis]
@@ -102,7 +67,6 @@ for idx_train, idx_test in StratifiedKFold(n_splits=8, random_state=0, shuffle=T
                                            ),
                                            y,
                                            ))
-
 
 
     ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, y_label[idx_valid]))

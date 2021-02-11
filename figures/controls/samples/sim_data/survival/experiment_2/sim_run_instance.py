@@ -7,8 +7,8 @@ from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 from lifelines.utils import concordance_index
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[4], True)
-tf.config.experimental.set_visible_devices(physical_devices[4], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 

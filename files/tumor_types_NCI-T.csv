@@ -1,0 +1,154 @@
+type	histological_type	counts	NCI-T Label	NCI-T Code
+ACC	Adrenocortical Carcinoma- Myxoid Type	1	Adrenal Cortex Carcinoma	C9325
+ACC	Adrenocortical Carcinoma- Oncocytic Type	4	Adrenal Cortex Carcinoma	C9325
+ACC	Adrenocortical carcinoma- Usual Type	87	Adrenal Cortex Carcinoma	C9325
+BLCA	Muscle invasive urothelial carcinoma (pT2 or above)	409	Muscle-Invasive Bladder Carcinoma	C150572
+BLCA	[Not Available]	3		
+BRCA	Infiltrating Carcinoma NOS	1	Breast Carcinoma	C4872
+BRCA	Infiltrating Ductal Carcinoma	784	Infiltrating Ductal Breast Carcinoma	C4194
+BRCA	Infiltrating Lobular Carcinoma	203	Invasive Lobular Breast Carcinoma	C7950
+BRCA	Medullary Carcinoma	6	Breast Carcinoma	C4872
+BRCA	Metaplastic Carcinoma	9	Breast Carcinoma	C4872
+BRCA	Mixed Histology (please specify)	30	Breast Carcinoma	C4872
+BRCA	Mucinous Carcinoma	17	Breast Carcinoma	C4872
+BRCA	Other, specify	46	Breast Carcinoma	C4872
+BRCA	[Not Available]	1		
+CESC	Adenosquamous	6	Cervical Adenosquamous Carcinoma	C4519
+CESC	Cervical Squamous Cell Carcinoma	254	Cervical Squamous Cell Carcinoma	C4028
+CESC	Endocervical Adenocarcinoma of the Usual Type	6	Cervical Adenocarcinoma 	C4029
+CESC	Endocervical Type of Adenocarcinoma	21	Cervical Adenocarcinoma 	C4029
+CESC	Endometrioid Adenocarcinoma of Endocervix	3	Cervical Adenocarcinoma 	C4029
+CESC	Mucinous Adenocarcinoma of Endocervical Type	17	Cervical Adenocarcinoma 	C4029
+CHOL	Cholangiocarcinoma; distal	2	Cholangiocarcinoma	C4436
+CHOL	Cholangiocarcinoma; hilar/perihilar	7	Cholangiocarcinoma	C4436
+CHOL	Cholangiocarcinoma; intrahepatic	36	Cholangiocarcinoma	C4436
+COAD	Colon Adenocarcinoma	392	Colorectal Adenocarcinoma	C5105
+COAD	Colon Mucinous Adenocarcinoma	62	Colorectal Adenocarcinoma	C5105
+COAD	[Discrepancy]	3		
+COAD	[Not Available]	2		
+DLBC	Diffuse large B-cell lymphoma (DLBCL) NOS (any anatomic site nodal or extranodal)	41	Diffuse Large B-Cell Lymphoma	C8851
+DLBC	Primary DLBCL of the CNS	3	Diffuse Large B-Cell Lymphoma	C8851
+DLBC	Primary mediastinal (thymic) DLBCL	4	Diffuse Large B-Cell Lymphoma	C8851
+ESCA	Esophagus Adenocarcinoma, NOS	89	Esophageal Adenocarcinoma	C4025
+ESCA	Esophagus Squamous Cell Carcinoma	96	Esophageal Squamous Cell Carcinoma	C4024
+GBM	Glioblastoma Multiforme (GBM)	31	Glioblastoma	C3058
+GBM	Treated primary GBM	20	Glioblastoma	C3058
+GBM	Untreated primary (de novo) GBM	545	Glioblastoma	C3058
+HNSC	Head & Neck Squamous Cell Carcinoma	517	Head and Neck Squamous Cell Carcinoma	C34447
+HNSC	Head & Neck Squamous Cell Carcinoma Basaloid Type	10	Head and Neck Squamous Cell Carcinoma	C34447
+HNSC	Head & Neck Squamous Cell Carcinoma, Spindle Cell Variant	1	Head and Neck Squamous Cell Carcinoma	C34447
+KICH	Kidney Chromophobe	113	Chromophobe Renal Cell Carcinoma	C4146
+KIRC	Kidney Clear Cell Renal Carcinoma	537	Clear Cell Renal Cell Carcinoma	C4033
+KIRP	Kidney Papillary Renal Cell Carcinoma	291	Papillary Renal Cell Carcinoma	C6975
+LAML		200	Acute Myeloid Leukemia	C3171
+LGG	Astrocytoma	194	Astrocytoma	C60781
+LGG	Oligoastrocytoma	130	Oligodendroglioma	C3288
+LGG	Oligodendroglioma	191	Oligoastrocytoma	C4050
+LIHC	Fibrolamellar Carcinoma	3	Hepatocellular Carcinoma	C3099
+LIHC	Hepatocellular Carcinoma	367	Hepatocellular Carcinoma	C3099
+LIHC	Hepatocholangiocarcinoma (Mixed)	7	Hepatocellular Carcinoma	C3099
+LUAD	Lung Adenocarcinoma	522	Lung Adenocarcinoma	C3512
+LUSC	Lung Squamous Cell Carcinoma	504	Lung Squamous Cell Carcinoma	C3493
+MESO	Biphasic mesothelioma	23	Mesothelioma	C3234
+MESO	Diffuse malignant mesothelioma - NOS	5	Mesothelioma	C3234
+MESO	Epithelioid mesothelioma	57	Mesothelioma	C3234
+MESO	Sarcomatoid mesothelioma	2	Mesothelioma	C3234
+OV	Serous Cystadenocarcinoma	587	Ovarian Serous Adenocarcinoma	C7550
+PAAD	Pancreas-Adenocarcinoma Ductal Type	154	Adenocarcinoma, Pancreas	C8294
+PAAD	Pancreas-Adenocarcinoma-Other Subtype	25	Adenocarcinoma, Pancreas	C8294
+PAAD	Pancreas-Colloid (mucinous non-cystic) Carcinoma	4	Pancreatic Carcinoma	C3850
+PAAD	Pancreas-Undifferentiated Carcinoma	1	Pancreatic Carcinoma	C3850
+PAAD	[Discrepancy]	1		
+PCPG	Paraganglioma	18	Paraganglioma	C3308
+PCPG	Paraganglioma; Extra-adrenal Pheochromocytoma	13	Paraganglioma	C3308
+PCPG	Pheochromocytoma	148	Pheochromocytoma	C3326
+PRAD	Prostate Adenocarcinoma Acinar Type	485	Prostate Acinar Adenocarcinoma	C5596
+PRAD	Prostate Adenocarcinoma, Other Subtype	15	Prostate Adenocarcinoma	C2919
+READ	Rectal Adenocarcinoma	151	Colorectal Adenocarcinoma	C5105
+READ	Rectal Mucinous Adenocarcinoma	13	Colorectal Adenocarcinoma	C5105
+READ	[Not Available]	6		
+SARC	Dedifferentiated liposarcoma	59	Liposarcoma	C3194
+SARC	Desmoid Tumor	2	Desmoid-Type Fibromatosis	C9182
+SARC	Giant cell 'MFH' / Undifferentiated pleomorphic sarcoma with giant cells	1	Undifferentiated Pleomorphic Sarcoma	C4247
+SARC	Leiomyosarcoma (LMS)	105	Leiomyosarcoma	C3158
+SARC	Malignant Peripheral Nerve Sheath Tumors (MPNST)	9	Malignant Peripheral Nerve Sheath Tumor	C3798
+SARC	Myxofibrosarcoma	25	Myxofibrosarcoma	C6496
+SARC	Pleomorphic 'MFH' / Undifferentiated pleomorphic sarcoma	29	Undifferentiated Pleomorphic Sarcoma	C4247
+SARC	Sarcoma; synovial; poorly differentiated	2	Synovial Sarcoma	C3400
+SARC	Synovial Sarcoma - Biphasic	2	Synovial Sarcoma	C3400
+SARC	Synovial Sarcoma - Monophasic	6	Synovial Sarcoma	C3400
+SARC	Undifferentiated Pleomorphic Sarcoma (UPS)	21	Undifferentiated Pleomorphic Sarcoma	C4247
+SKCM		470	Cutaneous Melanoma	C3510
+STAD	Stomach Adenocarcinoma, Signet Ring Type	13	Gastric Adenocarcinoma	C4004
+STAD	Stomach, Adenocarcinoma, Diffuse Type	72	Gastric Adenocarcinoma	C4004
+STAD	Stomach, Adenocarcinoma, Not Otherwise Specified (NOS)	164	Gastric Adenocarcinoma	C4004
+STAD	Stomach, Intestinal Adenocarcinoma, Mucinous Type	22	Gastric Adenocarcinoma	C4004
+STAD	Stomach, Intestinal Adenocarcinoma, Not Otherwise Specified (NOS)	82	Gastric Adenocarcinoma	C4004
+STAD	Stomach, Intestinal Adenocarcinoma, Papillary Type	8	Gastric Adenocarcinoma	C4004
+STAD	Stomach, Intestinal Adenocarcinoma, Tubular Type	79	Gastric Adenocarcinoma	C4004
+STAD	[Discrepancy]	1		
+STAD	[Not Available]	2		
+TGCT	Non-Seminoma; Choriocarcinoma|Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Teratoma (Immature)	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Embryonal Carcinoma	15	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Teratoma (Mature)	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Choriocarcinoma|Non-Seminoma; Yolk Sac Tumor|Seminoma; NOS	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Teratoma (Immature)|Non-Seminoma; Yolk Sac Tumor	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Yolk Sac Tumor	6	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Choriocarcinoma	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Teratoma (Immature)	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Teratoma (Mature)	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Teratoma (Immature)|Seminoma; NOS	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Embryonal Carcinoma|Seminoma; NOS	2	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Embryonal Carcinoma|[Not Available]	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Embryonal Carcinoma|[Not Available]|[Not Available]|[Not Available]	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Immature)	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Immature)|Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Yolk Sac Tumor	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Immature)|Non-Seminoma; Yolk Sac Tumor	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Immature)|Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Embryonal Carcinoma	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Immature)|Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Teratoma (Mature)	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Mature)	2	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Teratoma (Immature)|Non-Seminoma; Yolk Sac Tumor	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Teratoma (Immature)|Non-Seminoma; Embryonal Carcinoma	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Teratoma (Immature)|Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Yolk Sac Tumor	4	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Teratoma (Immature)|Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Choriocarcinoma	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Teratoma (Immature)|Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Embryonal Carcinoma|Seminoma; NOS	2	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Yolk Sac Tumor	2	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Mature)|Seminoma; NOS|Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Yolk Sac Tumor	2	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Teratoma (Mature)|[Not Available]|Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Yolk Sac Tumor	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Yolk Sac Tumor	3	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Embryonal Carcinoma	2	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Teratoma (Immature)	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Teratoma (Mature)|Seminoma; NOS	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Teratoma (Mature)	1	Testicular Non-Seminomatous Germ Cell Tumor	C9313
+TGCT	Seminoma; NOS	64	Testicular Seminoma	C7328
+TGCT	Seminoma; NOS|Non-Seminoma; Choriocarcinoma	1	Testicular Seminoma	C7328
+TGCT	Seminoma; NOS|Non-Seminoma; Embryonal Carcinoma	1	Testicular Seminoma	C7328
+TGCT	Seminoma; NOS|Non-Seminoma; Teratoma (Mature)	1	Testicular Seminoma	C7328
+TGCT	Seminoma; NOS|Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Embryonal Carcinoma	1	Testicular Seminoma	C7328
+TGCT	Seminoma; NOS|Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Yolk Sac Tumor	1	Testicular Seminoma	C7328
+TGCT	Seminoma; NOS|Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Teratoma (Immature)|Non-Seminoma; Yolk Sac Tumor	1	Testicular Seminoma	C7328
+TGCT	Seminoma; NOS|Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Embryonal Carcinoma|Non-Seminoma; Teratoma (Immature)	1	Testicular Seminoma	C7328
+TGCT	Seminoma; NOS|Non-Seminoma; Yolk Sac Tumor|Non-Seminoma; Teratoma (Mature)|Non-Seminoma; Teratoma (Immature)	1	Testicular Seminoma	C7328
+THCA	Other, specify	9		
+THCA	Thyroid Papillary Carcinoma - Classical/usual	359	Thyroid Gland Papillary Carcinoma	C4035
+THCA	Thyroid Papillary Carcinoma - Follicular (>= 99% follicular patterned)	102	Thyroid Gland Follicular Carcinoma	C8054
+THCA	Thyroid Papillary Carcinoma - Tall Cell (>= 50% tall cell features)	37	Thyroid Gland Papillary Carcinoma	C4035
+THYM	Thymoma; Type A	15	Thymoma	C3411
+THYM	Thymoma; Type AB	38	Thymoma	C3411
+THYM	Thymoma; Type A|Thymoma; Type AB	2	Thymoma	C3411
+THYM	Thymoma; Type B1	14	Thymoma	C3411
+THYM	Thymoma; Type B1|Thymoma; Type B2	1	Thymoma	C3411
+THYM	Thymoma; Type B2	28	Thymoma	C3411
+THYM	Thymoma; Type B2|Thymoma; Type B3	3	Thymoma	C3411
+THYM	Thymoma; Type B3	12	Thymoma	C3411
+THYM	Thymoma; Type C	11	Thymoma	C3411
+UCEC	Endometrioid endometrial adenocarcinoma	411	Endometrial Endometrioid Adenocarcinoma	C6287
+UCEC	Mixed serous and endometrioid	22	Endometrial Mixed Cell Adenocarcinoma	C40153
+UCEC	Serous endometrial adenocarcinoma	115	Endometrial Serous Adenocarcinoma	C27838
+UCS	Uterine Carcinosarcoma/ MMMT: Heterologous Type	20	Uterine Carcinosarcoma	C42700
+UCS	Uterine Carcinosarcoma/ Malignant Mixed Mullerian Tumor (MMMT): NOS	24	Uterine Carcinosarcoma	C42700
+UCS	Uterine Carcinosarcoma/MMMT: Homologous Type	13	Uterine Carcinosarcoma	C42700
+UVM	Epithelioid Cell	13	Uveal Melanoma	C7712
+UVM	Epithelioid Cell|Spindle Cell	21	Uveal Melanoma	C7712
+UVM	Spindle Cell	30	Uveal Melanoma	C7712
+UVM	Spindle Cell|Epithelioid Cell	16	Uveal Melanoma	C7712

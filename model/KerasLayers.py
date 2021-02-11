@@ -181,6 +181,7 @@ class Ragged:
 
 
 class Losses:
+
     class CrossEntropy(tf.keras.losses.Loss):
         def __init__(self, name='CE', from_logits=True):
             super(Losses.CrossEntropy, self).__init__(name=name)
@@ -198,13 +199,10 @@ class Losses:
             else:
                 return tf.reduce_mean(losses, axis=0)
 
-
-
     class QuantileLoss(tf.keras.losses.Loss):
-        def __init__(self, name='QL', alpha=0.05, weight=0.5):
+        def __init__(self, name='QL', alpha=0.05):
             super(Losses.QuantileLoss, self).__init__(name=name)
             self.quantiles = tf.constant(((alpha / 2), 0.5, 1 - (alpha / 2)))
-            self.quantiles_weight = tf.constant([weight / 2, 1 - weight, weight / 2])
 
         def call(self, y_true, y_pred):
             # per sample losses across the quantiles
@@ -216,9 +214,8 @@ class Losses:
             losses = self.call(y_true, y_pred)
             # return correct true weighted average if provided sample_weight
             if sample_weight is not None:
-                return tf.reduce_sum(tf.reduce_sum(losses * sample_weight[:, 0], axis=0) / tf.reduce_sum(sample_weight) * self.quantiles_weight)
+                return tf.reduce_sum(tf.reduce_sum(losses * sample_weight[:, 0], axis=0) / tf.reduce_sum(sample_weight))
             else:
-                # return tf.reduce_sum(tf.reduce_mean(losses, axis=0) * self.quantiles_weight)
                 return tf.reduce_sum(tf.reduce_mean(losses, axis=0))
 
     class CoxPH(tf.keras.losses.Loss):
@@ -285,10 +282,9 @@ class Metrics:
             self.accuracy.assign(0)
 
     class QuantileLoss(tf.keras.metrics.Metric):
-        def __init__(self, name='QL', alpha=0.05, weight=0.5):
+        def __init__(self, name='QL', alpha=0.05):
             super(Metrics.QuantileLoss, self).__init__(name=name)
             self.quantiles = tf.constant(((alpha / 2), 0.5, 1 - (alpha / 2)))
-            self.quantiles_weight = tf.constant([weight / 2, 1 - weight, weight / 2])
             self.QL = self.add_weight(name='QL', initializer=tf.keras.initializers.constant(0.))
 
         def update_state(self, y_true, y_pred, sample_weight=None):
@@ -297,9 +293,8 @@ class Metrics:
             losses = residual * (self.quantiles[tf.newaxis, :] - tf.cast(tf.less(residual, 0.), tf.float32))
 
             if sample_weight is not None:
-                self.QL.assign(tf.reduce_sum(tf.reduce_sum(losses * sample_weight[:, 0], axis=0) / tf.reduce_sum(sample_weight) * self.quantiles_weight))
+                self.QL.assign(tf.reduce_sum(tf.reduce_sum(losses * sample_weight[:, 0], axis=0) / tf.reduce_sum(sample_weight)))
             else:
-                # self.QL.assign(tf.reduce_sum(tf.reduce_mean(losses, axis=0) * self.quantiles_weight))
                 self.QL.assign(tf.reduce_sum(tf.reduce_mean(losses, axis=0)))
 
         def result(self):

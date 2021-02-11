@@ -8,8 +8,8 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import r2_score
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[3], True)
-tf.config.experimental.set_visible_devices(physical_devices[3], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
@@ -33,8 +33,6 @@ D['chr_emb'] = chr_emb_mat[D['chr']]
 frame_emb_mat = np.concatenate([np.zeros(3)[np.newaxis, :], np.diag(np.ones(3))], axis=0)
 D['cds_emb'] = frame_emb_mat[D['cds']]
 
-hist_emb_mat = np.concatenate([np.zeros(samples['histology'].shape[1])[np.newaxis, :], np.diag(np.ones(samples['histology'].shape[1]))], axis=0)
-samples['hist_emb'] = hist_emb_mat[np.argmax(samples['histology'], axis=-1)]
 
 ##bin position
 def pos_one_hot(pos):
@@ -106,8 +104,6 @@ for encoder, loaders, weights, name in zip(encoders, loaders, all_weights, ['nai
     ##test eval
     test_idx = []
     predictions = []
-    genes = []
-    evaluations = []
 
     for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=8, random_state=0, shuffle=True).split(y_strat, y_strat)):
         mil.model.set_weights(weights[index])
@@ -117,11 +113,8 @@ for encoder, loaders, weights, name in zip(encoders, loaders, all_weights, ['nai
         ds_test = ds_test.map(lambda x, y: (tuple([i(x, ragged_output=True) for i in loaders]),
                                             y,
                                             ))
-
-        evaluations.append(mil.model.evaluate(ds_test)[1])
         predictions.append(mil.model.predict(ds_test))
         test_idx.append(idx_test)
-
 
     #mse
     print(round(np.mean((y_label[:, 0][np.concatenate(test_idx)] - np.concatenate(predictions)[:, 1])**2), 4))
@@ -129,7 +122,7 @@ for encoder, loaders, weights, name in zip(encoders, loaders, all_weights, ['nai
     print(round(np.mean(np.absolute(y_label[:, 0][np.concatenate(test_idx)] - np.concatenate(predictions)[:, 1])), 4))
     #r2
     print(round(r2_score(y_label[:, 0][np.concatenate(test_idx)], np.concatenate(predictions)[:, 1]), 4))
-
+    print()
     results[name] = np.concatenate(predictions)
 
 
@@ -143,9 +136,8 @@ sample_df.fillna({'panel_non_syn_counts': 0}, inplace=True)
 
 results['counting'] = np.log(sample_df['panel_non_syn_counts'].values[np.concatenate(test_idx)] / (panels.loc[panels['Panel'] == 'MSK-IMPACT468']['cds'].values[0]/1e6) + 1)
 
-with open(cwd / 'figures' / 'tmb' / 'tcga' / 'MSK_468' / 'results' / 'predictions.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'tmb' / 'tcga' / 'MSK_341' / 'results' / 'predictions.pkl', 'wb') as f:
     pickle.dump(results, f)
-
 
 
 ##counting stats

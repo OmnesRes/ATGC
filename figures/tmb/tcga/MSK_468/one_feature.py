@@ -6,8 +6,8 @@ from model import DatasetsUtils
 from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[4], True)
-tf.config.experimental.set_visible_devices(physical_devices[4], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
@@ -30,9 +30,6 @@ D['chr_emb'] = chr_emb_mat[D['chr']]
 
 frame_emb_mat = np.concatenate([np.zeros(3)[np.newaxis, :], np.diag(np.ones(3))], axis=0)
 D['cds_emb'] = frame_emb_mat[D['cds']]
-
-hist_emb_mat = np.concatenate([np.zeros(samples['histology'].shape[1])[np.newaxis, :], np.diag(np.ones(samples['histology'].shape[1]))], axis=0)
-samples['hist_emb'] = hist_emb_mat[np.argmax(samples['histology'], axis=-1)]
 
 ##bin position
 def pos_one_hot(pos):

@@ -7,8 +7,8 @@ from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 from sklearn.metrics import classification_report
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[5], True)
-tf.config.experimental.set_visible_devices(physical_devices[5], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
@@ -72,11 +72,12 @@ with open(cwd / 'figures' / 'controls' / 'samples' / 'hotspot' / 'results' / 'we
     weights = pickle.load(f)
 
 sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 16, 16])
-mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dim=2, pooling='both', mil_hidden=(64, 32, 16, 8), output_type='anlulogits')
+mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dim=2, pooling='sum', mil_hidden=(64, 32, 16, 8), output_type='anlulogits')
 
 test_idx = []
 predictions = []
 attentions = []
+instance_labels = []
 for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=8, random_state=0, shuffle=True).split(y_strat, y_strat)):
     mil.model.set_weights(weights[index])
 
@@ -92,6 +93,8 @@ for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=8, random
     predictions.append(mil.model.predict(ds_test))
     test_idx.append(idx_test)
     attentions.append(mil.attention_model.predict(ds_test).to_list())
+    instance_labels.append(genes_start[np.concatenate(np.array(indexes, dtype=object)[idx_test].tolist(), axis=1)[0]] == 'BRAF:140453136')
+
 
 
 
@@ -104,5 +107,5 @@ print(classification_report(y_strat[np.concatenate(test_idx, axis=-1)], np.argma
 
 
 with open(cwd / 'figures' / 'controls' / 'samples' / 'hotspot' / 'results' / 'latent_braf.pkl', 'wb') as f:
-    pickle.dump(attentions, f)
+    pickle.dump([attentions, instance_labels], f)
 

@@ -1,14 +1,102 @@
 import pylab as plt
 import pickle
 import numpy as np
-from sklearn.preprocessing import PolynomialFeatures
-from scipy.optimize import minimize
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC':
+if path.stem == 'ATGC2':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+
+
+##violin plots
+# import json
+# import pandas as pd
+# import seaborn as sns
+# ##path to files
+# path = cwd / 'files/'
+# samples = pickle.load(open(path / 'tcga_sample_table.pkl', 'rb'))
+# panels = pickle.load(open(path / 'tcga_panel_table.pkl', 'rb'))
+#
+# with open(path / 'cases.2020-02-28.json', 'r') as f:
+#     tcga_cancer_info = json.load(f)
+# cancer_labels = {i['submitter_id']: i['project']['project_id'].split('-')[-1] for i in tcga_cancer_info}
+# cancer_labels['TCGA-AB-2852'] = 'LAML'
+# samples['type'] = samples['bcr_patient_barcode'].apply(lambda x: cancer_labels[x])
+#
+# ##remove samples without a kit that covered the exome
+# samples_covered = samples.loc[samples['Exome_Covered']]
+# samples_unknown = samples.loc[(samples['Exome_Unknown']) & (samples['type'].isin(['KIRC', 'BRCA']))]
+# samples = samples_covered.append(samples_unknown)
+#
+# ##remove samples with TMB above 64
+# samples['TMB'] = samples['non_syn_counts'] / (panels.loc[panels['Panel'] == 'Agilent_kit']['cds'].values[0]/1e6)
+# samples = samples.loc[samples['TMB'] < 64]
+# samples.reset_index(inplace=True, drop=True)
+#
+# ##for NCI-T
+# label_counts = samples['NCI-T Label'].value_counts().to_dict()
+# mask = samples['NCI-T Label'].map(lambda x: label_counts.get(x, 0) >= 36)
+# samples = samples[mask]
+#
+#
+# samples['log TMB'] = np.log(samples['TMB'].values + 1)
+# medians = samples.groupby('NCI-T Label')['TMB'].median().to_dict()
+# # medians = samples.groupby('type')['TMB'].median().to_dict()
+#
+#
+# tcga_dict = {'LAML': 'Acute Myeloid Leukemia', 'ACC': 'Adrenocortical carcinoma', 'BLCA': 'Bladder Urothelial Carcinoma', 'LGG': 'Brain Lower Grade Glioma', 'BRCA': 'Breast invasive carcinoma', 'CESC': 'Cervical squamous cell carcinoma and endocervical adenocarcinoma', 'CHOL': 'Cholangiocarcinoma', 'LCML': 'Chronic Myelogenous Leukemia', 'COAD': 'Colon adenocarcinoma', 'CNTL': 'Controls', 'ESCA': 'Esophageal carcinoma', 'FPPP': 'FFPE Pilot Phase II', 'GBM': 'Glioblastoma multiforme', 'HNSC': 'Head and Neck squamous cell carcinoma', 'KICH': 'Kidney Chromophobe', 'KIRC': 'Kidney renal clear cell carcinoma', 'KIRP': 'Kidney renal papillary cell carcinoma', 'LIHC': 'Liver hepatocellular carcinoma', 'LUAD': 'Lung adenocarcinoma', 'LUSC': 'Lung squamous cell carcinoma', 'DLBC': 'Lymphoid Neoplasm Diffuse Large B-cell Lymphoma', 'MESO': 'Mesothelioma', 'MISC': 'Miscellaneous', 'OV': 'Ovarian serous cystadenocarcinoma', 'PAAD': 'Pancreatic adenocarcinoma', 'PCPG': 'Pheochromocytoma and Paraganglioma', 'PRAD': 'Prostate adenocarcinoma', 'READ': 'Rectum adenocarcinoma', 'SARC': 'Sarcoma', 'SKCM': 'Skin Cutaneous Melanoma', 'STAD': 'Stomach adenocarcinoma', 'TGCT': 'Testicular Germ Cell Tumors', 'THYM': 'Thymoma', 'THCA': 'Thyroid carcinoma', 'UCS': 'Uterine Carcinosarcoma', 'UCEC': 'Uterine Corpus Endometrial Carcinoma', 'UVM': 'Uveal Melanoma'}
+#
+#
+# fig = plt.figure()
+# ax = fig.add_subplot(111)
+# fig.subplots_adjust(
+# top=0.985,
+# bottom=0.08,
+# left=0.335,
+# right=1.0,
+# hspace=0.2,
+# wspace=0.2
+# )
+#
+# # fig.subplots_adjust(
+# # top=1.0,
+# # bottom=0.075,
+# # left=0.48,
+# # right=1.0,
+# # hspace=0.2,
+# # wspace=0.2
+# # )
+# sns.violinplot(
+#                y='NCI-T Label',
+#                # y='type',
+#                x='log TMB',
+#                orient='h',
+#                data=samples,
+#                ax=ax,
+#                order=pd.unique(samples['NCI-T Label'])[np.argsort([medians[i] for i in pd.unique(samples['NCI-T Label'])])],
+#                # order=pd.unique(samples['type'])[np.argsort([medians[i] for i in pd.unique(samples['type'])])],
+#                cut=0,
+#                inner=None,
+#                linewidth=0,
+#                scale='width',
+#                )
+#
+# ax.set_xticks([np.log(i+1) for i in [0, 1, 2, 3, 5, 10, 25, 64]])
+# ax.set_xticklabels(['0', '1', '2', '3', '5', '10', '25', '64'], fontsize=9)
+# ax.set_xlabel('TMB')
+# # ax.set_yticklabels([tcga_dict[i] for i in pd.unique(samples['type'])[np.argsort([medians[i] for i in pd.unique(samples['type'])])]])
+# # ax.set_ylabel('TCGA Study')
+# ax.tick_params(which='both', axis='y', labelsize=6, pad=-5, length=0)
+# ax.tick_params(which='both', axis='x', labelsize=6, length=3, width=.6)
+# ax.spines['bottom'].set_bounds(np.log(1 + 0), np.log(1 + 64))
+# ax.spines['right'].set_visible(False)
+# ax.spines['top'].set_visible(False)
+# ax.spines['left'].set_visible(False)
+# ax.spines['bottom'].set_linewidth(.6)
+# plt.savefig(cwd / 'figures' / 'tmb' / 'violin_nci.pdf')
+# plt.savefig(cwd / 'figures' / 'tmb' / 'violin_tcga.pdf')
+
 
 
 ##panel plot
@@ -54,7 +142,9 @@ else:
 
 
 
-#predictions
+##predictions
+from sklearn.preprocessing import PolynomialFeatures
+from scipy.optimize import minimize
 results = pickle.load(open(cwd / 'figures' / 'tmb' / 'tcga' / 'MSK_468' / 'results' / 'predictions.pkl', 'rb'))
 
 ##residuals
@@ -86,7 +176,7 @@ residuals = []
 x_preds = []
 y_pred_bounds = []
 
-results['y_true'] = results['y_true'][:, 1]
+results['y_true'] = results['y_true'][:, 0]
 for i in ['counting', 'naive', 'position', 'sequence']:
     if i != 'counting':
         results[i] = results[i][:, 1]
@@ -96,8 +186,9 @@ for i in ['counting', 'naive', 'position', 'sequence']:
     x_preds.append(x_pred)
     y_pred_bounds.append(temp_y_pred_bounds)
 
-
-colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+from matplotlib import cm
+paired = [cm.get_cmap('Paired')(i) for i in range(12) if i not in [4, 5]]
+colors = [paired[1], paired[3], paired[5], paired[7]]
 labels = ['Counting', 'ATGC', 'ATGC + Pos', 'ATGC + Seq']
 fig = plt.figure()
 gs = fig.add_gridspec(2, 2)

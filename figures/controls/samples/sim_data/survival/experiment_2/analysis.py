@@ -25,8 +25,8 @@ from model.Instance_MIL import InstanceModels, RaggedModels
 # from model.Sample_MIL import InstanceModels, RaggedModels
 from model import DatasetsUtils
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[4], True)
-tf.config.experimental.set_visible_devices(physical_devices[4], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 ##perform embeddings with a zero vector for index 0
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
