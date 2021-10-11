@@ -15,15 +15,15 @@ class Apply:
 
         def __call__(self, ds_input: tf.data.Dataset):
             def generator():
-                # expecting ds of (idx, y_true, y_strat)
-                idx, y_true, y_strat = list(map(tf.stack, list(map(list, zip(*list(ds_input))))))
+                # expecting ds of (idx, y_strat)
+                idx, y_strat = list(map(tf.stack, list(map(list, zip(*list(ds_input))))))
                 while True:
                     for _, batch_idx in self.batcher.split(y_strat, y_strat):
-                        yield tf.gather(idx, batch_idx, axis=0), tf.gather(y_true, batch_idx, axis=0)
+                        yield tf.gather(idx, batch_idx, axis=0)
 
             return tf.data.Dataset.from_generator(generator,
-                                                  output_types=(ds_input.element_spec[0].dtype, ds_input.element_spec[1].dtype),
-                                                  output_shapes=((None, ), (None, ds_input.element_spec[1].shape[0])))
+                                                  output_types=(ds_input.element_spec[0].dtype),
+                                                  output_shapes=((None, )))
 
     class StratifiedBootstrap:
         def __init__(self, batch_class_sizes=[]):
@@ -33,8 +33,8 @@ class Apply:
 
         def __call__(self, ds_input: tf.data.Dataset):
             def generator():
-                # expecting ds of (idx, y_true, y_strat)
-                idx, y_true, y_strat = list(map(tf.stack, list(map(list, zip(*list(ds_input))))))
+                # expecting ds of (idx, y_strat)
+                idx, y_strat = list(map(tf.stack, list(map(list, zip(*list(ds_input))))))
                 assert (tf.reduce_max(y_strat).numpy() + 1) == len(self.batch_class_sizes)
                 class_idx = [tf.where(y_strat == i)[:, 0] for i in range(len(self.batch_class_sizes))]
                 while True:
@@ -45,13 +45,11 @@ class Apply:
                                                                                   dtype=tf.int64)))
                     batch_idx = tf.concat(batch_idx, axis=0)
 
-                    yield tf.gather(idx, batch_idx, axis=0), tf.gather(y_true, batch_idx, axis=0)
+                    yield tf.gather(idx, batch_idx, axis=0)
 
             return tf.data.Dataset.from_generator(generator,
-                                                  output_types=(ds_input.element_spec[0].dtype, ds_input.element_spec[1].dtype),
-                                                  output_shapes=((self.batch_size, ), (self.batch_size, ds_input.element_spec[1].shape[0])))
-
-
+                                                  output_types=(ds_input.element_spec[0].dtype),
+                                                  output_shapes=((self.batch_size)))
 
     class SubSample:
         def __init__(self, batch_size, ds_size):
@@ -59,15 +57,15 @@ class Apply:
             self.ds_size = ds_size
         def __call__(self, ds_input: tf.data.Dataset):
             def generator():
-                # expecting ds of (idx, y_true)
-                idx, y_true = list(map(tf.stack, list(map(list, zip(*list(ds_input))))))
+                # expecting ds of idx
+                idx = tf.stack([element for element in ds_input])
                 while True:
                     batch_idx = np.random.choice(np.arange(self.ds_size), self.batch_size, replace=False)
-                    yield tf.gather(idx, batch_idx, axis=0), tf.gather(y_true, batch_idx, axis=0)
+                    yield tf.gather(idx, batch_idx, axis=0)
 
             return tf.data.Dataset.from_generator(generator,
-                                                  output_types=(ds_input.element_spec[0].dtype, ds_input.element_spec[1].dtype),
-                                                  output_shapes=((None, ), (None, ds_input.element_spec[1].shape[0])))
+                                                  output_types=(ds_input.element_spec.dtype),
+                                                  output_shapes=((None, )))
 
 
 class Map:
