@@ -10,10 +10,10 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -50,7 +50,7 @@ idx_train, idx_test = next(StratifiedShuffleSplit(random_state=0, n_splits=1, te
 idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
 
-ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_strat[idx_train]))
+ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_strat[idx_train]))
 ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=100, ds_size=len(idx_train)))
 ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        three_p_loader(x, ragged_output=True),
@@ -59,7 +59,8 @@ ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True),
                                        tf.gather(tf.constant(types), x)
                                        ),
-                                       y))
+                                       tf.gather(y_label, x)
+                                      ))
 
 ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, y_label[idx_valid]))
 ds_valid = ds_valid.batch(len(idx_valid), drop_remainder=False)
@@ -89,8 +90,8 @@ weights = []
 for i in range(3):
     sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
     sample_encoder = SampleModels.Type(shape=(), dim=len(np.unique(types)))
-    # mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], sample_layers=[64, ], output_dim=1, pooling='both', output_type='other', pooled_layers=[32, ])
-    mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], fusion='before', output_dim=1, pooling='both', output_type='other', pooled_layers=[32, ])
+    # mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], sample_layers=[64, ], output_dims=[1], pooling='both', output_types=['other'], pooled_layers=[32, ])
+    mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], fusion='before', output_dims=[1], pooling='both', output_types=['other'], pooled_layers=[32, ])
     losses = ['mse']
     mil.model.compile(loss=losses,
                       metrics=['mse'],

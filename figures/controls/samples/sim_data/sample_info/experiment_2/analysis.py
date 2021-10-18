@@ -10,10 +10,10 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -68,8 +68,8 @@ evaluations, histories, weights = pickle.load(open(cwd / 'figures' / 'controls' 
 sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
 sample_encoder = SampleModels.Type(shape=(), dim=len(np.unique(types)))
 
-mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], fusion='before', output_dim=1, pooling='both', output_type='other', pooled_layers=[32, ])
-# mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], sample_layers=[64, ], output_dim=1, pooling='both', output_type='other', pooled_layers=[32, ])
+mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], fusion='before', output_dims=[1], pooling='both', output_types=['other'], pooled_layers=[32, ])
+# mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[sample_encoder.model], sample_layers=[64, ], output_dims=[1], pooling='both', output_types=['other'], pooled_layers=[32, ])
 
 
 attentions = []
