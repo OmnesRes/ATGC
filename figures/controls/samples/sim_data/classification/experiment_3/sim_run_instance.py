@@ -51,7 +51,7 @@ ds_train = ds_train.map(lambda x: ((five_p_loader(x, ragged_output=True),
                                        ref_loader(x, ragged_output=True),
                                        alt_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True)),
-                                   (tf.gather(y_label, x))
+                                   tf.gather(y_label, x)
                                       ))
 
 ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, y_label[idx_valid]))
