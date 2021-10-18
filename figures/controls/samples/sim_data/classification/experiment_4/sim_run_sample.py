@@ -51,7 +51,7 @@ ds_train = ds_train.map(lambda x: ((five_p_loader(x, ragged_output=True),
                                        ref_loader(x, ragged_output=True),
                                        alt_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True)),
-                                      (tf.gather(y_label))
+                                      tf.gather(y_label, x)
                                       ))
 
 ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, y_label[idx_valid]))
@@ -79,7 +79,7 @@ evaluations = []
 weights = []
 for i in range(3):
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='both', pooled_layers=[32, ])
+    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dims=[2], pooling='both', pooled_layers=[32, ])
     mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dims=[2], pooling='dynamic')
     losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
     mil.model.compile(loss=losses,

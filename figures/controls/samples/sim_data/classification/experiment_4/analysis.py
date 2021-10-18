@@ -51,7 +51,8 @@ ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                        ref_loader(x, ragged_output=True),
                                        alt_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True)),
-                                       y))
+                                      (tf.gather(y_label, x),)
+                                      ))
 
 ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, y_label[idx_valid]))
 ds_valid = ds_valid.batch(len(idx_valid), drop_remainder=False)
@@ -73,8 +74,8 @@ ds_test = ds_test.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
 
 
 tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-# mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='dynamic')
-mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='both', pooled_layers=[32, ])
+# mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dims=[2], pooling='dynamic')
+mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dims=[2], pooling='both', pooled_layers=[32, ])
 attentions = []
 evaluations, histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'sample_model_attention_both.pkl', 'rb'))
 for i in range(3):
