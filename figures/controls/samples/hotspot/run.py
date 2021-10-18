@@ -11,10 +11,10 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -73,14 +73,14 @@ losses = [Losses.CrossEntropy()]
 for idx_train, idx_test in StratifiedKFold(n_splits=8, random_state=0, shuffle=True).split(y_strat, y_strat):
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=1500, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
-    ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_strat[idx_train]))
+    ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_strat[idx_train]))
     ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=1000, ds_size=len(idx_train)))
     ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
                                            three_p_loader(x, ragged_output=True),
                                            ref_loader(x, ragged_output=True),
                                            alt_loader(x, ragged_output=True),
                                            strand_loader(x, ragged_output=True)),
-                                           y,
+                                           tf.gather(y_label, x),
                                            tf.gather(tf.constant(y_weights, dtype=tf.float32), x)))
 
     ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, y_label[idx_valid]))
@@ -95,7 +95,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=8, random_state=0, shuffle=T
 
     while True:
         sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 16, 16])
-        mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dim=2, pooling='sum', mil_hidden=(64, 32, 16, 8), output_type='anlulogits')
+        mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dims=[2], pooling='sum', mil_hidden=(64, 32, 16, 8), output_types=['anlulogits'])
 
         mil.model.compile(loss=losses,
                           metrics=[Metrics.CrossEntropy(), Metrics.Accuracy()],

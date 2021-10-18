@@ -12,10 +12,10 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -72,7 +72,7 @@ with open(cwd / 'figures' / 'controls' / 'samples' / 'hotspot' / 'results' / 'we
     weights = pickle.load(f)
 
 sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 16, 16])
-mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dim=2, pooling='sum', mil_hidden=(64, 32, 16, 8), output_type='anlulogits')
+mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dims=[2], pooling='sum', mil_hidden=(64, 32, 16, 8), output_types=['anlulogits'])
 
 test_idx = []
 predictions = []
