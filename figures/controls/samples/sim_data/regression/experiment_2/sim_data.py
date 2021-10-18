@@ -2,10 +2,10 @@ from figures.controls.samples.sim_data.sim_data_tools import *
 import pickle
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
 
 ##nonlinear
 

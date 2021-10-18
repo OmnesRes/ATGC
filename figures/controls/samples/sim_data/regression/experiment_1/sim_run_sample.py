@@ -10,10 +10,10 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -44,14 +44,15 @@ y_strat = np.ones_like(y_label)
 idx_train, idx_test = next(StratifiedShuffleSplit(random_state=0, n_splits=1, test_size=200).split(y_strat, y_strat))
 idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
-ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_strat[idx_train]))
+ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_strat[idx_train]))
 ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=100, ds_size=len(idx_train)))
-ds_train = ds_train.map(lambda x, y: ((five_p_loader(x, ragged_output=True),
+ds_train = ds_train.map(lambda x: ((five_p_loader(x, ragged_output=True),
                                        three_p_loader(x, ragged_output=True),
                                        ref_loader(x, ragged_output=True),
                                        alt_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True)),
-                                       y))
+                                   tf.gather(y_label, x)
+                                   ))
 
 ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, y_label[idx_valid]))
 ds_valid = ds_valid.batch(len(idx_valid), drop_remainder=False)
@@ -76,8 +77,8 @@ evaluations = []
 weights = []
 for i in range(3):
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='both', output_type='regression', pooled_layers=[32, ])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='dynamic', output_type='regression')
+    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dims=[1], pooling='both', output_types=['regression'], pooled_layers=[32, ])
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dims=[1], pooling='dynamic', output_types=['regression'])
     losses = ['mse']
     mil.model.compile(loss=losses,
                       metrics=['mse'],
