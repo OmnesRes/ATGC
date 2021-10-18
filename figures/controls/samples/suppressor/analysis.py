@@ -12,41 +12,57 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
 
-D, maf = pickle.load(open('/home/janaya2/Desktop/ATGC_paper/figures/controls/data/data.pkl', 'rb'))
+D, maf = pickle.load(open(cwd / 'figures' / 'controls' / 'data' / 'data.pkl', 'rb'))
 sample_df = pickle.load(open('files/tcga_sample_table.pkl', 'rb'))
 
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
 D['strand_emb'] = strand_emb_mat[D['strand']]
 
-chr_emb_mat = np.concatenate([np.zeros(24)[np.newaxis, :], np.diag(np.ones(24))], axis=0)
-D['chr_emb'] = chr_emb_mat[D['chr']]
-
 frame_emb_mat = np.concatenate([np.zeros(3)[np.newaxis, :], np.diag(np.ones(3))], axis=0)
 D['cds_emb'] = frame_emb_mat[D['cds']]
 
-##bin position
-def pos_one_hot(pos):
-    one_pos = int(pos * 100)
-    return one_pos, (pos * 100) - one_pos
 
-result = np.apply_along_axis(pos_one_hot, -1, D['pos_float'][:, np.newaxis])
+pos_bins = [100, 100]
+bin_sizes = []
+D['cum_pos'] = D['cum_pos'] - min(D['cum_pos'])
+max_pos = max(D['cum_pos'])
+for bin in pos_bins:
+    size = np.ceil(max_pos / bin)
+    bin_sizes.append(size)
+    max_pos = size
 
-D['pos_bin'] = np.stack(result[:, 0]) + 1
+##bin positions according to chosen bins
+def pos_one_hot(cum_pos, bin_sizes=bin_sizes):
+    bins = []
+    pos = cum_pos
+    for size in bin_sizes:
+        bin = int(pos / size)
+        bins.append(bin)
+        pos = pos - bin * size
+
+    return bins, pos / size
+
+result = np.apply_along_axis(pos_one_hot, -1, D['cum_pos'][:, np.newaxis])
+
+D['pos_bin'] = np.stack(np.array(result[:, 0])) + 1
 D['pos_loc'] = np.stack(result[:, 1])
+
+bin_0 = D['pos_bin'][:, 0]
+bin_1 = D['pos_bin'][:, 1]
 
 indexes = [np.where(D['sample_idx'] == idx) for idx in range(sample_df.shape[0])]
 
 pos_loc = np.array([D['pos_loc'][i] for i in indexes], dtype='object')
-pos_bin = np.array([D['pos_bin'][i] for i in indexes], dtype='object')
-chr = np.array([D['chr'][i] for i in indexes], dtype='object')
+bin_0 = np.array([bin_0[i] for i in indexes], dtype='object')
+bin_1 = np.array([bin_1[i] for i in indexes], dtype='object')
 
 # set y label and weights
 genes = maf['Hugo_Symbol'].values
@@ -60,14 +76,15 @@ y_weights = np.array([1 / class_counts[_] for _ in y_strat])
 y_weights /= np.sum(y_weights)
 
 pos_loader = DatasetsUtils.Map.FromNumpy(pos_loc, tf.float32)
-bin_loader = DatasetsUtils.Map.FromNumpy(pos_bin, tf.float32)
-chr_loader = DatasetsUtils.Map.FromNumpy(chr, tf.int32)
+bin_0_loader = DatasetsUtils.Map.FromNumpy(bin_0, tf.int32)
+bin_1_loader = DatasetsUtils.Map.FromNumpy(bin_1, tf.int32)
+
 
 with open('figures/controls/samples/suppressor/results/weights.pkl', 'rb') as f:
     weights = pickle.load(f)
 
-position_encoder = InstanceModels.VariantPositionBin(24, 100)
-mil = RaggedModels.MIL(instance_encoders=[position_encoder.model], output_dim=2, pooling='sum', mil_hidden=(64, 32, 16, 8), output_type='anlulogits', regularization=0)
+position_encoder = InstanceModels.VariantPositionBin(bins=pos_bins, fusion_dimension=128)
+mil = RaggedModels.MIL(instance_encoders=[position_encoder.model], output_dims=[2], pooling='sum', mil_hidden=(64, 32, 16, 8), output_types=['anlulogits'])
 
 test_idx = []
 predictions = []
@@ -78,9 +95,9 @@ for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=8, random
 
     ds_test = tf.data.Dataset.from_tensor_slices((idx_test, y_label[idx_test]))
     ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
-    ds_test = ds_test.map(lambda x, y: ((pos_loader(x, ragged_output=True),
-                                           bin_loader(x, ragged_output=True),
-                                           chr_loader(x, ragged_output=True),
+    ds_test = ds_test.map(lambda x, y: ((bin_0_loader(x, ragged_output=True),
+                                           bin_1_loader(x, ragged_output=True),
+                                           pos_loader(x, ragged_output=True),
                                            ),
                                            y,
                                            ))
