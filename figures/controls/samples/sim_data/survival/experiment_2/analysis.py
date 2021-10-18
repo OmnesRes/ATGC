@@ -8,10 +8,10 @@ import pickle
 import pathlib
 path = pathlib.Path.cwd()
 
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -74,8 +74,8 @@ attentions = []
 for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_strat, y_strat)):
     idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other', pooled_layers=[128, 64], mode='none')
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=1, pooling='sum', output_type='other', instance_layers=[128, 64])
+    # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dims=[1], pooling='sum', output_types=['other'], pooled_layers=[128, 64], mode='none')
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dims=[1], pooling='sum', output_types=['other'], instance_layers=[128, 64])
 
     mil.model.set_weights(weights[index])
     y_pred_all = mil.model.predict(ds_all)
