@@ -4,29 +4,27 @@ from model.KerasLayers import Activations, Ragged, Embed, StrandWeight
 class InstanceModels:
 
     class VariantPositionBin:
-        def __init__(self, chromosome_embedding_dimension, position_embedding_dimension, default_activation=tf.keras.activations.relu):
-            self.chromosome_embedding_dimension = chromosome_embedding_dimension
-            self.position_embedding_dimension = position_embedding_dimension
+        def __init__(self, bins, fusion_dimension=128, default_activation=tf.keras.activations.relu):
+            self.bins = bins
+            self.fusion_dimension = fusion_dimension
             self.default_activation = default_activation
             self.model = None
             self.build()
 
         def build(self, *args, **kwargs):
-            position_input = tf.keras.layers.Input(shape=(1,), dtype=tf.float32)
-            position_bin = tf.keras.layers.Input(shape=(), dtype=tf.int32)
-            chromosome_input = tf.keras.layers.Input(shape=(), dtype=tf.int32)
-            chromosome_emb = Embed(embedding_dimension=self.chromosome_embedding_dimension, trainable=False)
-            position_emb = Embed(embedding_dimension=self.position_embedding_dimension, trainable=False, triangular=False)
-            pos_loc = tf.keras.layers.Dense(units=64, activation=Activations.ASU())(position_input)
+            bin_inputs = [tf.keras.layers.Input(shape=(), dtype=tf.int32) for i in self.bins]
+            pos_input = tf.keras.layers.Input(shape=(1,), dtype=tf.float32)
+            embeds = [Embed(embedding_dimension=i, trainable=False) for i in self.bins]
+            bins_fused = tf.concat([emb(i) for i, emb in zip(bin_inputs, embeds)], axis=-1)
+            bins_fused = tf.keras.layers.Dense(units=sum(self.bins), activation=Activations.ARU())(bins_fused)
+            pos_loc = tf.keras.layers.Dense(units=64, activation=Activations.ASU())(pos_input)
             pos_loc = tf.keras.layers.Dense(units=32, activation=Activations.ARU())(pos_loc)
-            pos_loc = tf.concat([position_emb(position_bin), pos_loc], axis=-1)
-            pos_loc = tf.keras.layers.Dense(units=96, activation=Activations.ARU())(pos_loc)
-            fused = tf.concat([chromosome_emb(chromosome_input), pos_loc], axis=-1)
-            latent = tf.keras.layers.Dense(units=128, activation=Activations.ARU())(fused)
-            self.model = tf.keras.Model(inputs=[position_input, position_bin, chromosome_input], outputs=[latent])
+            fused = tf.concat([bins_fused, pos_loc], axis=-1)
+            fused = tf.keras.layers.Dense(units=self.fusion_dimension, activation=Activations.ARU())(fused)
+            self.model = tf.keras.Model(inputs=bin_inputs + [pos_input], outputs=[fused])
 
 
-    class VariantSequenceStacked:
+    class VariantSequence:
         def __init__(self, sequence_length, sequence_embedding_dimension, n_strands, convolution_params, fusion_dimension=64, default_activation=tf.keras.activations.relu, use_frame=False, regularization=.01):
             self.sequence_length = sequence_length
             self.sequence_embedding_dimension = sequence_embedding_dimension
@@ -70,75 +68,6 @@ class InstanceModels:
             else:
                 self.model = tf.keras.Model(inputs=[five_p, three_p, ref, alt, strand], outputs=[fused])
 
-    class VariantSequenceFlipped:
-        def __init__(self, sequence_length, sequence_embedding_dimension, convolution_params, layers=[64, 64], default_activation=tf.keras.activations.relu, use_frame=False, regularization=.01):
-            self.sequence_length = sequence_length
-            self.sequence_embedding_dimension = sequence_embedding_dimension
-            self.convolution_params = convolution_params
-            self.default_activation = default_activation
-            self.use_frame = use_frame
-            self.layers = layers
-            self.regularization=regularization
-            self.model = None
-            self.build()
-
-        def build(self, *args, **kwargs):
-            five_p = tf.keras.layers.Input(shape=(self.sequence_length, ), dtype=tf.int32)
-            three_p = tf.keras.layers.Input(shape=(self.sequence_length,), dtype=tf.int32)
-            ref = tf.keras.layers.Input(shape=(self.sequence_length,), dtype=tf.int32)
-            alt = tf.keras.layers.Input(shape=(self.sequence_length,), dtype=tf.int32)
-
-            # layers of convolution for sequence feature extraction based on conv_params
-            features = [[]] * 3
-            flanking_convolutions = [[]] * 2
-            nucleotide_emb = Embed(embedding_dimension=4, trainable=False)
-            for index, feature in enumerate([five_p, three_p]):
-                flanking_convolutions[index] = tf.keras.layers.Conv2D(filters=self.convolution_params[index], kernel_size=[1, self.sequence_length], activation=Activations.ARU())
-                # apply conv
-                features[index] = flanking_convolutions[index](nucleotide_emb(feature)[:, tf.newaxis, :, :])
-                # pool over any remaining positions
-                features[index] = tf.reduce_max(features[index], axis=[1, 2])
-
-            ##ref/alt
-            ref_alt_conv = tf.keras.layers.Conv2D(filters=self.convolution_params[-1], kernel_size=[2, self.sequence_length], activation=Activations.ARU())
-            features[-1] = ref_alt_conv(tf.concat([nucleotide_emb(ref)[:, tf.newaxis, :, :], nucleotide_emb(alt)[:, tf.newaxis, :, :]], axis=1))
-            # pool over any remaining positions
-            features[-1] = tf.reduce_max(features[-1], axis=[1, 2])
-            fused = [tf.concat(features, axis=1)]
-            for i in self.layers:
-                fused.append(tf.keras.layers.Dense(units=i, activation=self.default_activation, kernel_regularizer=tf.keras.regularizers.l2(self.regularization))(fused[-1]))
-
-            if self.use_frame:
-                strand = tf.keras.layers.Input(shape=(2,), dtype=tf.float32)
-                flipped = tf.keras.layers.Input(shape=(2,), dtype=tf.float32)
-                cds = tf.keras.layers.Input(shape=(3,), dtype=tf.float32)
-                frame = tf.concat([strand, cds], axis=-1)
-                frame = tf.keras.layers.Dense(units=6, activation=self.default_activation)(frame)
-                frame_flipped = tf.concat([frame, flipped], axis=-1)
-                frame_flipped = tf.keras.layers.Dense(units=12, activation=self.default_activation)(frame_flipped)
-                fused = tf.concat([fused[-1], frame_flipped], axis=-1)
-                self.model = tf.keras.Model(inputs=[five_p, three_p, ref, alt, strand, flipped, cds], outputs=[fused])
-            else:
-                self.model = tf.keras.Model(inputs=[five_p, three_p, ref, alt], outputs=[fused[-1]])
-
-
-    class VAF:
-        def __init__(self, layers=[8, 16]):
-            self.layers = layers
-            self.model = None
-            self.build()
-
-        def build(self, *args, **kwargs):
-            vaf = tf.keras.layers.Input(shape=(1,), dtype=tf.float32)
-            # reads = tf.keras.layers.Input(shape=(1,), dtype=tf.float32)
-            # fused = [tf.concat([vaf, reads], axis=-1)]
-            fused=[vaf]
-            for i in self.layers:
-                # fused.append(tf.keras.layers.Dense(units=i, activation='relu')(fused[-1]))
-                fused.append(tf.keras.layers.Dense(units=i, activation='relu')(fused[-1]))
-
-            self.model = tf.keras.Model(inputs=[vaf], outputs=[fused[-1]])
-
     class Reads:
         def __init__(self, read_layers=[8, 16], fused_layers=[32, 64]):
             self.read_layers = read_layers
@@ -160,7 +89,6 @@ class InstanceModels:
                 fused.append(tf.keras.layers.Dense(units=i, activation='relu')(fused[-1]))
 
             self.model = tf.keras.Model(inputs=[ref_input, alt_input], outputs=[fused[-1]])
-
 
 
     class PassThrough:
@@ -196,36 +124,6 @@ class SampleModels:
             input = tf.keras.layers.Input(self.shape, dtype=tf.int32)
             type_emb = Embed(embedding_dimension=self.dim, trainable=False)
             self.model = tf.keras.Model(inputs=[input], outputs=[type_emb(input)])
-
-    class HLA:
-        def __init__(self, filters=8, latent_dim=4, fusion_dimension=64, default_activation=tf.keras.activations.relu):
-            self.default_activation = default_activation
-            self.fusion_dimension = fusion_dimension
-            self.filters = filters
-            self.latent_dim = latent_dim
-            self.model = None
-            self.build()
-
-        def build(self, *args, **kwargs):
-            hla_A = tf.keras.layers.Input(shape=(2, self.latent_dim), dtype=tf.float32)
-            hla_B = tf.keras.layers.Input(shape=(2, self.latent_dim), dtype=tf.float32)
-            hla_C = tf.keras.layers.Input(shape=(2, self.latent_dim), dtype=tf.float32)
-
-            # layers of convolution for sequence feature extraction based on conv_params
-            features = [[]] * 3
-            convolutions = [[]] * 3
-            for index, feature in enumerate([hla_A, hla_B, hla_C]):
-                convolutions[index] = tf.keras.layers.Conv2D(filters=self.filters, kernel_size=[1, 1], activation=Activations.ARU())
-                # apply conv to each allele
-                features[index] = convolutions[index](feature[:, tf.newaxis, :, :])
-                # pool over both alleles
-                features[index] = tf.reduce_max(features[index], axis=[1, 2])
-
-            fused = tf.concat(features, axis=-1)
-            fused = tf.keras.layers.Dense(units=self.fusion_dimension, activation=self.default_activation, kernel_regularizer=tf.keras.regularizers.l2())(fused)
-
-            self.model = tf.keras.Model(inputs=[hla_A, hla_B, hla_C], outputs=[fused])
-
 
 
 class RaggedModels:

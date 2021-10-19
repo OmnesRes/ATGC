@@ -187,8 +187,8 @@ class Losses:
             super(Losses.CrossEntropy, self).__init__(name=name)
             self.from_logits = from_logits
 
-        def call(self, y_true, y_pred, loss_clip=0.):
-            return tf.maximum(tf.keras.losses.CategoricalCrossentropy(reduction='none', from_logits=self.from_logits)(y_true, y_pred) - loss_clip, 0.)
+        def call(self, y_true, y_pred):
+            return tf.keras.losses.CategoricalCrossentropy(reduction='none', from_logits=self.from_logits)(y_true, y_pred)
 
         def __call__(self, y_true, y_pred, sample_weight=None):
             # get sample loss
