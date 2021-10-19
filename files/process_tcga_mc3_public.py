@@ -4,10 +4,10 @@ import pickle
 import pyranges as pr
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
 ##your path to the files directory
 file_path = cwd / 'files/'
 
@@ -26,8 +26,7 @@ mc3_file_name = file_path / 'mc3.v0.2.8.PUBLIC.maf'
 usecols = ['Hugo_Symbol', 'Hugo_Symbol', 'Center', 'NCBI_Build', 'Chromosome', 'Start_Position', 'End_Position', 'STRAND', 'Variant_Classification', 'Variant_Type', 'Consequence', 'Reference_Allele', 'Tumor_Seq_Allele2', 't_ref_count', 't_alt_count', 'Tumor_Sample_Barcode', 'CONTEXT', 'FILTER', 'CDS_position']
 tcga_maf = pd.read_csv(mc3_file_name, sep='\t', usecols=usecols, low_memory=False)
 ##The MAF contains nonpreferred pairs which results in some samples having duplicated variants
-tcga_maf = tcga_maf.loc[(tcga_maf['FILTER'] == 'PASS') | (tcga_maf['FILTER'] == 'wga')]
-
+tcga_maf = tcga_maf.loc[(tcga_maf['FILTER'] == 'PASS') | (tcga_maf['FILTER'] == 'wga') | (tcga_maf['FILTER'] == 'native_wga_mix')]
 
 # df of counts via groupby, could add other metrics derived from mc maf here
 non_syn = ['Missense_Mutation', 'Nonsense_Mutation', 'Frame_Shift_Del', 'Frame_Shift_Ins', 'In_Frame_Del', 'In_Frame_Ins', 'Nonstop_Mutation']
@@ -83,8 +82,8 @@ while X:
 with open(file_path / 'responses.pkl', 'wb') as f:
     pickle.dump([cases, responses], f)
 
-# with open(path / 'responses.pkl', 'rb') as f:
-#     cases, responses = pickle.load(f)
+with open(file_path / 'responses.pkl', 'rb') as f:
+    cases, responses = pickle.load(f)
 
 
 flattened_responses = []

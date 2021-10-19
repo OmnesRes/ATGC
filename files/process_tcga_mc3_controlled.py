@@ -4,10 +4,10 @@ import pickle
 import pyranges as pr
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
 ##your path to the files directory
 file_path = cwd / 'files/'
 
@@ -28,7 +28,10 @@ tcga_maf = pd.read_csv(file_path / mc3_file_name, sep='\t', usecols=usecols, low
 ##The MAF contains nonpreferred pairs which results in some samples having duplicated variants
 filters = ['PASS', 'NonExonic,bitgt', 'NonExonic,bitgt,wga', 'NonExonic', 'NonExonic,wga', 'bitgt', 'bitgt,wga', 'wga', \
            'broad_PoN_v2', 'NonExonic,bitgt,broad_PoN_v2', 'NonExonic,bitgt,broad_PoN_v2,wga', 'NonExonic,broad_PoN_v2', \
-           'broad_PoN_v2,wga', 'bitgt,broad_PoN_v2', 'NonExonic,broad_PoN_v2,wga', 'bitgt,broad_PoN_v2,wga']
+           'broad_PoN_v2,wga', 'bitgt,broad_PoN_v2', 'NonExonic,broad_PoN_v2,wga', 'bitgt,broad_PoN_v2,wga', \
+           'NonExonic,bitgt,native_wga_mix', 'NonExonic,native_wga_mix', 'bitgt,native_wga_mix', 'native_wga_mix', \
+           'NonExonic,bitgt,broad_PoN_v2,native_wga_mix', 'broad_PoN_v2,native_wga_mix', 'NonExonic,broad_PoN_v2,native_wga_mix', \
+           'bitgt,broad_PoN_v2,native_wga_mix']
 
 tcga_maf = tcga_maf.loc[tcga_maf['FILTER'].isin(filters)]
 tcga_maf = tcga_maf.loc[tcga_maf['Chromosome'] != 'MT']
@@ -88,8 +91,8 @@ while X:
 with open(file_path / 'responses_controlled.pkl', 'wb') as f:
     pickle.dump([cases, responses], f)
 
-# with open(file_path / 'responses_controlled.pkl', 'rb') as f:
-#     cases, responses = pickle.load(f)
+with open(file_path / 'responses_controlled.pkl', 'rb') as f:
+    cases, responses = pickle.load(f)
 
 
 flattened_responses = []
