@@ -12,10 +12,10 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 from sklearn.metrics import confusion_matrix
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -104,7 +104,7 @@ ds_test = ds_test.map(lambda x, y: ((tf.gather(tf.constant(D['seq_5p'], dtype=tf
 
 
 sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [64, 64, 64, 64], fusion_dimension=128, use_frame=True)
-mil = RaggedModels.MIL(instance_encoders=[], sample_encoders=[sequence_encoder.model], output_dim=y_label.shape[-1], output_type='other', mil_hidden=[128, 128, 64, 32], mode='none')
+mil = RaggedModels.MIL(instance_encoders=[], sample_encoders=[sequence_encoder.model], output_dims=[y_label.shape[-1]], output_types=['other'], mil_hidden=[128, 128, 64, 32], mode='none')
 losses = [Losses.CrossEntropy()]
 mil.model.compile(loss=losses,
                   metrics=[Metrics.Accuracy(), Metrics.CrossEntropy()],
