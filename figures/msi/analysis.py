@@ -14,10 +14,10 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -29,7 +29,6 @@ msipred_features = pickle.load(open(cwd / 'figures' / 'msi' / 'data' / 'msipred_
 msipred_features.fillna(0, inplace=True)
 msipred_features = pd.merge(sample_df[['Tumor_Sample_Barcode', 'msi_status']], msipred_features, how='left', left_on='Tumor_Sample_Barcode', right_index=True)
 msipred_features['msi_status'] = msipred_features['msi_status'].apply(lambda x: 1 if x == 'high' else 0)
-
 
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
 D['strand_emb'] = strand_emb_mat[D['strand']]
@@ -48,11 +47,13 @@ ref = np.array([D['seq_ref'][i] for i in indexes], dtype='object')
 alt = np.array([D['seq_alt'][i] for i in indexes], dtype='object')
 strand = np.array([D['strand_emb'][i] for i in indexes], dtype='object')
 
+
 five_p_loader = DatasetsUtils.Map.FromNumpy(five_p, tf.int32)
 three_p_loader = DatasetsUtils.Map.FromNumpy(three_p, tf.int32)
 ref_loader = DatasetsUtils.Map.FromNumpy(ref, tf.int32)
 alt_loader = DatasetsUtils.Map.FromNumpy(alt, tf.int32)
 strand_loader = DatasetsUtils.Map.FromNumpy(strand, tf.float32)
+
 
 # set y label and weights
 y_label = samples['class']
@@ -76,7 +77,7 @@ all_latents = []
 
 ##stratified K fold for test
 sequence_encoder = InstanceModels.VariantSequence(20, 4, 2, [8, 8, 8, 8])
-mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dim=2, pooling='sum', mil_hidden=(64, 64, 32, 16), output_type='classification_probability')
+mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], output_dims=[2], pooling='sum', mil_hidden=(64, 64, 32, 16), output_types=['classification_probability'])
 mil.model.compile(loss=[Losses.CrossEntropy(from_logits=False)],
                   metrics=[Metrics.CrossEntropy(from_logits=False), Metrics.Accuracy()],
                   optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
@@ -93,7 +94,8 @@ for run, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=9, shuffle=
                                            three_p_loader(x, ragged_output=True),
                                            ref_loader(x, ragged_output=True),
                                            alt_loader(x, ragged_output=True),
-                                           strand_loader(x, ragged_output=True)),
+                                           strand_loader(x, ragged_output=True)
+                                         ),
                                           y
                                           ))
 
@@ -101,29 +103,27 @@ for run, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=9, shuffle=
     predictions.append(mil.model.predict(ds_test))
     test_idx.append(idx_test)
     #
-    # evaluations.append(mil.model.evaluate(ds_test))
-    # idx_train_valid = np.concatenate([idx_train, idx_valid], axis=-1)
-    # train_features = msipred_features.iloc[idx_train_valid, 2:]
-    # test_features = msipred_features.iloc[idx_test, 2:]
-    # new_model = mp.svm_training(training_X=train_features, training_y=list(msipred_features.iloc[idx_train_valid, 1]))
-    # predicted_MSI = new_model.predict_proba(test_features)
-    # msipred_predictions.append(predicted_MSI)
+    evaluations.append(mil.model.evaluate(ds_test))
+    idx_train_valid = np.concatenate([idx_train, idx_valid], axis=-1)
+    train_features = msipred_features.iloc[idx_train_valid, 2:]
+    test_features = msipred_features.iloc[idx_test, 2:]
+    new_model = mp.svm_training(training_X=train_features, training_y=list(msipred_features.iloc[idx_train_valid, 1]))
+    predicted_MSI = new_model.predict_proba(test_features)
+    msipred_predictions.append(predicted_MSI)
+
+    latent = np.concatenate(mil.attention_model.predict(ds_test).to_list()).flat
+    test_indexes = np.concatenate(np.array([np.where(D['sample_idx'] == i)[0] for i in range(y_label.shape[0])], dtype='object')[idx_test], axis=-1)
+    labels_repeats = D['repeat'][test_indexes] == 1
+    repeats = latent[labels_repeats]
+    non_repeats = latent[~labels_repeats]
+    all_latents.append([non_repeats, repeats])
 
 
-    #
-    # latent = np.concatenate(mil.attention_model.predict(ds_test).to_list()).flat
-    # test_indexes = np.concatenate(np.array([np.where(D['sample_idx'] == i)[0] for i in range(y_label.shape[0])], dtype='object')[idx_test], axis=-1)
-    # labels_repeats = D['repeat'][test_indexes] == 1
-    # repeats = latent[labels_repeats]
-    # non_repeats = latent[~labels_repeats]
-    # all_latents.append([non_repeats, repeats])
+with open(cwd / 'figures' / 'msi' / 'results' / 'latents.pkl', 'wb') as f:
+    pickle.dump(all_latents, f)
 
-
-# with open(cwd / 'figures' / 'msi' / 'results' / 'latents.pkl', 'wb') as f:
-#     pickle.dump(all_latents, f)
-
-# with open(cwd / 'figures' / 'msi' / 'results' / 'for_mantis_plot.pkl', 'wb') as f:
-#     pickle.dump([predictions, test_idx, sample_df, y_label], f)
+with open(cwd / 'figures' / 'msi' / 'results' / 'for_mantis_plot.pkl', 'wb') as f:
+    pickle.dump([predictions, test_idx, sample_df, y_label], f)
 
 
 ###metrics

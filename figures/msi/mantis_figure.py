@@ -4,10 +4,10 @@ import numpy as np
 import pathlib
 from matplotlib import cm
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
 
 with open(cwd / 'figures' / 'msi' / 'results' / 'for_mantis_plot.pkl', 'rb') as f:
     predictions, test_idx, sample_df, y_label = pickle.load(f)

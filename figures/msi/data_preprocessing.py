@@ -4,11 +4,12 @@ import numpy as np
 import re
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
-
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    import sys
+    sys.path.append(str(cwd))
 
 ##path to files
 path = cwd / 'files/'
@@ -54,12 +55,6 @@ seqs_3p = np.stack(tcga_maf.three_p.apply(lambda x: np.array([nucleotide_mapping
 seqs_ref = np.stack(tcga_maf.Ref.apply(lambda x: np.array([nucleotide_mapping[i] for i in x])).values, axis=0)
 seqs_alt = np.stack(tcga_maf.Alt.apply(lambda x: np.array([nucleotide_mapping[i] for i in x])).values, axis=0)
 
-# chr, pos
-chromosome_mapping = dict(zip([str(i) for i in list(range(1, 23))] + ['X', 'Y'], list(range(1, 25))))
-gen_chr = np.array([chromosome_mapping[i] for i in tcga_maf.Chromosome.values])
-chromosome_sizes = pd.read_csv(path / 'chr_sizes.tsv', sep='\t', header=None)
-chromosome_sizes = dict(zip(chromosome_sizes[0].values, chromosome_sizes[1]))
-gen_pos = tcga_maf.Start_Position.values / [chromosome_sizes[i] for i in tcga_maf.Chromosome.values]
 cds = tcga_maf['CDS_position'].astype(str).apply(lambda x: (int(x) % 3) + 1 if re.match('^[0-9]+$', x) else 0).values
 
 instances = {'sample_idx': samples_idx,
@@ -67,8 +62,6 @@ instances = {'sample_idx': samples_idx,
              'seq_3p': seqs_3p,
              'seq_ref': seqs_ref,
              'seq_alt': seqs_alt,
-             'chr': gen_chr,
-             'pos_float': gen_pos,
              'cds': cds,
              'repeat': tcga_maf['repeat'].values}
 
@@ -87,6 +80,8 @@ samples_dict = {'cancer': samples.type.values,
            'classes': classes}
 
 variant_encoding = np.array([0, 2, 1, 4, 3])
+
+##for stacked
 instances['seq_5p'] = np.stack([instances['seq_5p'], variant_encoding[instances['seq_3p'][:, ::-1]]], axis=2)
 instances['seq_3p'] = np.stack([instances['seq_3p'], variant_encoding[instances['seq_5p'][:, :, 0][:, ::-1]]], axis=2)
 t = instances['seq_ref'].copy()

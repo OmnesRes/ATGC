@@ -3,10 +3,12 @@ import pickle
 import pathlib
 
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    import sys
+    sys.path.append(str(cwd))
 
 ##path to files
 path = cwd / 'files/'
@@ -23,7 +25,11 @@ mc3_maf = mc3_maf.loc[mc3_maf['Sample_ID'].str[:-3].isin(ground_truth_msi[0]), :
 ##same filters as before
 filters = ['PASS', 'NonExonic,bitgt', 'NonExonic,bitgt,wga', 'NonExonic', 'NonExonic,wga', 'bitgt', 'bitgt,wga', 'wga', \
            'broad_PoN_v2', 'NonExonic,bitgt,broad_PoN_v2', 'NonExonic,bitgt,broad_PoN_v2,wga', 'NonExonic,broad_PoN_v2', \
-           'broad_PoN_v2,wga', 'bitgt,broad_PoN_v2', 'NonExonic,broad_PoN_v2,wga', 'bitgt,broad_PoN_v2,wga']
+           'broad_PoN_v2,wga', 'bitgt,broad_PoN_v2', 'NonExonic,broad_PoN_v2,wga', 'bitgt,broad_PoN_v2,wga', \
+           'NonExonic,bitgt,native_wga_mix', 'NonExonic,native_wga_mix', 'bitgt,native_wga_mix', 'native_wga_mix', \
+           'NonExonic,bitgt,broad_PoN_v2,native_wga_mix', 'broad_PoN_v2,native_wga_mix', 'NonExonic,broad_PoN_v2,native_wga_mix', \
+           'bitgt,broad_PoN_v2,native_wga_mix']
+
 
 mc3_maf = mc3_maf.loc[mc3_maf['FILTER'].isin(filters)]
 mc3_maf = mc3_maf.loc[mc3_maf['Chromosome'] != 'MT']
@@ -71,7 +77,7 @@ other_features = other_maf.make_feature_table(exome_size=44)
 
 all_features = other_features.append(stad_features)
 
-with open(cwd / 'figures' / 'msi' / 'data' / 'msipred_features.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'msi' / 'data' / 'msipred_features_new.pkl', 'wb') as f:
     pickle.dump(all_features, f)
 
 

@@ -5,11 +5,12 @@ import pathlib
 from matplotlib import cm
 from sklearn.metrics import precision_score, recall_score, average_precision_score, precision_recall_curve, classification_report
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
-
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    import sys
+    sys.path.append(str(cwd))
 
 with open(cwd / 'figures' / 'msi' / 'results' / 'for_prc_plot.pkl', 'rb') as f:
     mil_recalls, mil_precisions, msipred_recalls, msipred_precisions, mil_scores, msipred_scores, sample_df, y_true, test_idx = pickle.load(f)
