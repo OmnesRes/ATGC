@@ -20,8 +20,8 @@ paired = [cm.get_cmap('Paired')(i) for i in range(12) if i not in [4, 5]]
 fold = 0
 fig = plt.figure()
 ax = fig.add_subplot(111)
-n, bins, patches = ax.hist(np.concatenate(latent[fold]).flat[~np.array(labels[fold])], bins=200, range=(0, 1), edgecolor=paired[2], color=paired[2], align='mid', linewidth=1)
-ax.hist(np.concatenate(latent[fold]).flat[labels[fold]], bins=bins, edgecolor=paired[3], color=paired[3], align='mid', linewidth=1)
+n, bins, patches = ax.hist(np.array([j for i in latent[fold] for j in i])[labels[fold]], bins=200, range=(0, 1), edgecolor=paired[2], color=paired[2], align='mid', linewidth=1)
+ax.hist(np.array([j for i in latent[fold] for j in i])[labels[fold]], bins=bins, edgecolor=paired[3], color=paired[3], align='mid', linewidth=1)
 ax.set_yscale('log', base=10)
 ax.set_ylim(1, 10**6)
 ax.set_xlim(0, 1)

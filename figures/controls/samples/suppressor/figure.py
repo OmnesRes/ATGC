@@ -11,7 +11,6 @@ else:
     import sys
     sys.path.append(str(cwd))
 
-
 with open('figures/controls/samples/suppressor/results/latent.pkl', 'rb') as f:
     latent, labels = pickle.load(f)
 
@@ -21,8 +20,8 @@ fold = 0
 
 fig = plt.figure()
 ax = fig.add_subplot(111)
-n, bins, patches = ax.hist(np.concatenate(latent[fold]).flat[~np.array(labels[fold])], bins=200, range=(0, 1), edgecolor=paired[0], color=paired[0], align='mid', linewidth=1)
-ax.hist(np.concatenate(latent[fold]).flat[labels[fold]], bins=bins, edgecolor=paired[1], color=paired[1], align='mid', linewidth=1)
+n, bins, patches = ax.hist(np.array([j for i in latent[fold] for j in i])[~labels[fold]], bins=200, range=(0, 1), edgecolor=paired[0], color=paired[0], align='mid', linewidth=1)
+ax.hist(np.array([j for i in latent[fold] for j in i])[labels[fold]], bins=bins, edgecolor=paired[1], color=paired[1], align='mid', linewidth=1)
 ax.set_yscale('log', base=10)
 ax.set_ylim(1, 10**6)
 ax.set_xlim(-.01, 1)
