@@ -21,17 +21,22 @@ else:
 
 D, samples, sample_df = pickle.load(open(cwd / 'figures' / 'msi' / 'data' / 'data.pkl', 'rb'))
 
+strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
+D['strand_emb'] = strand_emb_mat[D['strand']]
+
 indexes = [np.where(D['sample_idx'] == idx) for idx in range(sample_df.shape[0])]
 
 five_p = np.array([D['seq_5p'][i] for i in indexes], dtype='object')
 three_p = np.array([D['seq_3p'][i] for i in indexes], dtype='object')
 ref = np.array([D['seq_ref'][i] for i in indexes], dtype='object')
 alt = np.array([D['seq_alt'][i] for i in indexes], dtype='object')
+strand = np.array([D['strand_emb'][i] for i in indexes], dtype='object')
 
 five_p_loader = DatasetsUtils.Map.FromNumpy(five_p, tf.int32)
 three_p_loader = DatasetsUtils.Map.FromNumpy(three_p, tf.int32)
 ref_loader = DatasetsUtils.Map.FromNumpy(ref, tf.int32)
 alt_loader = DatasetsUtils.Map.FromNumpy(alt, tf.int32)
+strand_loader = DatasetsUtils.Map.FromNumpy(strand, tf.float32)
 
 # set y label and weights
 y_label = samples['class']
@@ -57,6 +62,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=9, random_state=0, shuffle=T
                                             three_p_loader(x, ragged_output=True),
                                             ref_loader(x, ragged_output=True),
                                             alt_loader(x, ragged_output=True),
+                                            strand_loader(x, ragged_output=True)
                                             ),
                                            tf.gather(tf.constant(y_label), x)
                                            ))
@@ -66,6 +72,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=9, random_state=0, shuffle=T
                                             three_p_loader(x, ragged_output=True),
                                             ref_loader(x, ragged_output=True),
                                             alt_loader(x, ragged_output=True),
+                                            strand_loader(x, ragged_output=True)
                                             ),
                                            tf.gather(tf.constant(y_label), x)
                                            ))
