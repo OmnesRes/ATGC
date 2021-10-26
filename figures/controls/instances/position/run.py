@@ -41,9 +41,6 @@ def pos_one_hot(cum_pos, bin_sizes=bin_sizes):
 
     return bins, pos / size
 
-for i in D['cum_pos']:
-    pos_one_hot(i)
-
 result = np.apply_along_axis(pos_one_hot, -1, D['cum_pos'][:, np.newaxis])
 
 D['pos_bin'] = np.stack(np.array(result[:, 0])) + 1
