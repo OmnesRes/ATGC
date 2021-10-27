@@ -19,11 +19,6 @@ samples = pickle.load(open(cwd / 'files' / 'tcga_sample_table.pkl', 'rb'))
 tcga_maf.dropna(inplace=True)
 
 ##map genomic coordinates to the exome (takes some time)
-
-# chr, pos
-chromosome_mapping = dict(zip([str(i) for i in list(range(1, 23))] + ['X', 'Y'], list(range(1, 25))))
-gen_chr = np.array([chromosome_mapping[i] for i in tcga_maf.Chromosome.values])
-
 gff = pd.read_csv(cwd / 'files'/ 'Homo_sapiens.GRCh37.87.gff3',
                   sep='\t',
                   names=['chr', 'unknown', 'gene_part', 'start', 'end', 'unknown2', 'strand', 'unknown3', 'gene_info'],
@@ -105,7 +100,6 @@ instances = {'sample_idx': samples_idx,
              'seq_3p': seqs_3p,
              'seq_ref': seqs_ref,
              'seq_alt': seqs_alt,
-             'chr': gen_chr,
              'cum_pos': cum_pos,
              'cds': cds,
 }
