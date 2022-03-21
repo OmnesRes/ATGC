@@ -2,12 +2,13 @@ import pandas as pd
 import numpy as np
 import pickle
 import pyranges as pr
+import concurrent.futures
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC':
+if path.stem == 'ATGC2':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
 ##your path to the files directory
 file_path = cwd / 'files/'
 
@@ -27,6 +28,126 @@ usecols = ['Hugo_Symbol', 'Hugo_Symbol', 'Center', 'NCBI_Build', 'Chromosome', '
 tcga_maf = pd.read_csv(mc3_file_name, sep='\t', usecols=usecols, low_memory=False)
 ##The MAF contains nonpreferred pairs which results in some samples having duplicated variants
 tcga_maf = tcga_maf.loc[(tcga_maf['FILTER'] == 'PASS') | (tcga_maf['FILTER'] == 'wga') | (tcga_maf['FILTER'] == 'native_wga_mix')]
+
+##chang hotspots
+hotspots = pd.read_csv(cwd / 'files' / 'hotspots.vcf', skiprows=1, sep='\t')
+hotspots = hotspots[['#CHROM', 'POS', 'REF', 'ALT']]
+hotspots.drop_duplicates(inplace=True)
+
+test = tcga_maf.iloc[0:1, :]
+
+def get_overlap(tumor):
+    tumor_df = tcga_maf.loc[tcga_maf['Tumor_Sample_Barcode'] == tumor].sort_values(['Start_Position'])
+    ##remove extra mutation due to dinucleotides
+    dfs = []
+    for i in tumor_df['Chromosome'].unique():
+        result = tumor_df.loc[(tumor_df['Chromosome'] == i) & (tumor_df['Variant_Type'] == 'SNP')].copy()
+        if len(result) > 1:
+            to_merge = sum(result['Start_Position'].values - result['Start_Position'].values[:, np.newaxis] == 1)
+            merged = []
+            if sum(to_merge) > 0:
+                position = 0
+                indexes_to_remove = []
+                for index, merge in enumerate(to_merge[position:]):
+                    if merge:
+                        first = position + index - 1
+                        last = position + index
+                        while to_merge[last]:
+                            last += 1
+                        position = last
+                        last -= 1
+                        indexes_to_remove += list(range(first, last + 1))
+                        ref = ''
+                        alt = ''
+                        variant = result.iloc[first].copy()
+                        variant['End_Position'] = result.iloc[last]['Start_Position'].values[0]
+                        variant = result.iloc[first].copy()
+                        variant['Variant_Classification'] = 'Missense_Mutation'
+                        if last - first == 1:
+                            type = 'DNP'
+                        elif last - first == 2:
+                            type = 'TNP'
+                        else:
+                            type = 'ONP'
+                        variant['Variant_Type'] = type
+                        for row in result.iloc[first:last + 1, :].itertuples():
+                            ref += row.Reference_Allele
+                            alt += row.Tumor_Seq_Allele2
+                        variant['Reference_Allele'] = ref
+                        variant['Tumor_Seq_Allele2'] = alt
+                        merged.append(variant)
+            result = result[~[i in indexes_to_remove for i in result.indexes]]
+            result = pd.append(result, pd.concat(merged))
+        dfs.append(result)
+    tumor_df = pd.concat(dfs)
+
+    #
+    # if dfs != []:
+    #     to_remove = pd.concat(dfs)
+    #     to_remove['remove'] = True
+    #     tumor_df = pd.merge(tumor_df, to_remove, how='left')
+    #     ##assume dinucleotides are missense mutations
+    #     new_classification = tumor_df['Variant_Classification'].values
+    #     new_classification[tumor_df.index[tumor_df['remove'] == True] - 1] = 'Missense_Mutation'
+    #     tumor_df['Variant_Classification'] = new_classification
+    #     tumor_df = tumor_df.loc[tumor_df['remove'] != True]
+    #
+    # counts = depths[tumor][-1]
+    # if len(counts) == 0:
+    #     return None
+    # if np.median(counts[counts > 0]) < 30:
+    #     return None
+    # file = tumor_to_bed[tumor]
+    # try:
+    #     bed_df = pd.read_csv(cwd / 'files' / 'coverage_beds' / 'broad' / file, names=['Chromosome', 'Start', 'End'], low_memory=False, sep='\t')
+    # except:
+    #     return None
+    # bed_df = bed_df.loc[bed_df['Chromosome'].isin(chromosomes)]
+    # bed_pr = pr.PyRanges(bed_df).merge()
+    # bed_cds_pr = bed_pr.intersect(gff_cds_pr).merge()
+    # bed_size = sum([i + 1 for i in bed_cds_pr.lengths()])
+    # bed_panel_cds_pr = bed_cds_pr.intersect(panel_pr).merge()
+    # panel_size = sum([i + 1 for i in bed_panel_cds_pr.lengths()])
+    # tumor_pr = pr.PyRanges(tumor_df[['Chromosome', 'Start_Position', 'End_Position', 'Reference_Allele', 'Tumor_Seq_Allele2', 'Variant_Classification', 'Variant_Type']].rename(columns={'Start_Position': 'Start', 'End_Position': 'End'}))
+    # grs = {'bed_cds': bed_cds_pr, 'bed_panel_cds': bed_panel_cds_pr}
+    # result = pr.count_overlaps(grs, pr.concat({'maf': tumor_pr}.values()))
+    # result = result.df
+    # exome_counts = sum((result['bed_cds'] > 0) & result['Variant_Classification'].isin(non_syn))
+    # if exome_counts == 0:
+    #     return None
+    # if bed_size < 25000000:
+    #     return None
+    # panel_counts = sum(result['bed_panel_cds'] > 0)
+    # types = result[result['bed_panel_cds'] > 0]['Variant_Classification'].value_counts()
+    # classes = result[result['bed_panel_cds'] > 0]['Variant_Type'].value_counts()
+    #
+    # if len(result.loc[(result['Variant_Type'] == 'SNP') & (result['bed_panel_cds'] > 0)]) > 0:
+    #     panel_hotspots = len(pd.merge(result.loc[(result['Variant_Type'] == 'SNP') & (result['bed_panel_cds'] > 0)],
+    #                                   hotspots,
+    #                                   left_on=['Chromosome', 'Start', 'Reference_Allele', 'Tumor_Seq_Allele2'],
+    #                                   right_on=['#CHROM', 'POS', 'REF', 'ALT'],
+    #                                   how='inner'))
+    # else:
+    #     panel_hotspots = 0
+
+    # return [panel_counts, panel_size, exome_counts, bed_size, panel_hotspots, types, classes]
+    return tumor_df
+
+data = {}
+with concurrent.futures.ProcessPoolExecutor(max_workers=15) as executor:
+    for tumor, result in tqdm(zip(tumor_to_bed.keys(), executor.map(get_overlap, tumor_to_bed.keys()))):
+        data[tumor] = result
+
+
+
+
+
+
+
+##do the bed intersections here, get sizes for sample table
+# tcga_sample_table['exome'] = tcga_sample_table['Tumor_Sample_Barcode'].apply(lambda x: sizes(x))
+
+
 
 # df of counts via groupby, could add other metrics derived from mc maf here
 non_syn = ['Missense_Mutation', 'Nonsense_Mutation', 'Frame_Shift_Del', 'Frame_Shift_Ins', 'In_Frame_Del', 'In_Frame_Ins', 'Nonstop_Mutation']
@@ -51,152 +172,6 @@ msi = pickle.load(open(file_path / 'msi_ground_truth' / 'msi_labels.pkl', 'rb'))
 tcga_sample_table = pd.merge(tcga_sample_table, msi, how='left', left_on='bcr_patient_barcode', right_index=True)
 tcga_sample_table.rename(columns={0: 'msi'}, inplace=True)
 
-##not every kit covered the entire exome, kit information is only available in the readgroups from the API
-import requests
-import json
-cases = list(tcga_sample_table['bcr_patient_barcode'])
-
-cases_endpt = 'https://api.gdc.cancer.gov/cases'
-responses = []
-step = 100
-count = 0
-X = True
-while X:
-    print(count)
-    if (count+1)*step >= len(cases):
-        value = cases[count*step:]
-        X = False
-    value = cases[count*step: (count+1)*step]
-    count += 1
-    filt = {"op": "in",
-            "content": {
-                "field": "cases.submitter_id",
-                "value": value
-            }
-            }
-    params = {'filters': json.dumps(filt), "expand": "files.analysis.metadata.read_groups", 'size': '100'}
-    response = requests.get(cases_endpt, params=params).json()
-    responses.append(response)
-
-##If you don't want to use the API again save the data
-with open(file_path / 'responses.pkl', 'wb') as f:
-    pickle.dump([cases, responses], f)
-
-with open(file_path / 'responses.pkl', 'rb') as f:
-    cases, responses = pickle.load(f)
-
-
-flattened_responses = []
-for response in responses:
-    for i in response["data"]["hits"]:
-        flattened_responses.append(i)
-
-##map a sample to its barcode
-case_to_barcode = {i: j for i, j in zip(tcga_sample_table['bcr_patient_barcode'], tcga_sample_table['Tumor_Sample_Barcode'])}
-
-##one case isn't in the API
-case_to_barcode.pop('TCGA-AB-2852')
-
-##will need this later
-cancer_dict = {i: j for i, j in zip(tcga_sample_table['bcr_patient_barcode'], tcga_sample_table['type'])}
-
-##the responses are not in order requested from the API
-hits = {}
-for case in case_to_barcode:
-    for j in flattened_responses:
-        for k in j['submitter_sample_ids']:
-            if case in k:
-                hits[case] = j
-                break
-
-data = {}
-for case in case_to_barcode:
-    for i in hits[case]['files']:
-        for k in i['analysis']['metadata']['read_groups']:
-            if k['library_strategy'] == 'WXS':
-                Y = False
-                sample = k['experiment_name']
-                if sample[-2:] == '-1':
-                    sample = sample[:-2]
-                if sample == case_to_barcode[case]:
-                    key = case_to_barcode[case]
-                    Y = True
-                else:
-                    sample = sample[5:]
-                    temp_sample = case_to_barcode[case][5:]
-                    if sample == temp_sample:
-                        key = case_to_barcode[case]
-                        Y = True
-                    else:
-                        if cancer_dict[case] == 'LAML' and 'TCGA' not in k['experiment_name']:
-                            if case in ['TCGA-AB-2918', 'TCGA-AB-2934', 'TCGA-AB-2864', 'TCGA-AB-2909', 'TCGA-AB-2807', 'TCGA-AB-2808', 'TCGA-AB-2935']:
-                                pass
-                            elif case == 'TCGA-AB-2869':
-                                if k['experiment_name'] == "H_KA-141273-0927521":
-                                    key = case_to_barcode[case]
-                                    Y = True
-                            else:
-                                key = case_to_barcode[case]
-                                Y = True
-                        else:
-                            if cancer_dict[case] == 'LUSC':
-                                sample = k['experiment_name'][10:].replace('TP', '01A')
-                                temp_sample = case_to_barcode[case][8:]
-                                if sample == temp_sample:
-                                    key = case_to_barcode[case]
-                                    Y = True
-                            else:
-                                ##handle the mislabeled SKCM cases here
-                                if case in ['TCGA-HR-A2OH', 'TCGA-HR-A2OG', 'TCGA-D9-A4Z6', 'TCGA-D9-A1X3']:
-                                    sample = k['experiment_name'].replace('01A', '06A')
-                                    if sample == case_to_barcode[case]:
-                                        key = case_to_barcode[case]
-                                        Y = True
-                                else:
-                                    # these BRCA cases have some sort of mislabel, not sure what to do:['TCGA-BH-A1EU', 'TCGA-A2-A04T', 'TCGA-E2-A15I']
-                                    pass
-                    if Y== False:
-                        temp_sample = case_to_barcode[case][5:20]
-                        if sample == temp_sample:
-                            key = case_to_barcode[case]
-                            Y = True
-                if Y == True:
-                    key = key[:15]
-                    data[key] = data.get(key, {'centers': [], 'kits': [], 'beds': []})
-                    data[key].update([('centers', data[key]['centers'] + [k['sequencing_center']]),\
-                                         ('kits', data[key]['kits'] + [k['target_capture_kit_name']]),\
-                                         ('beds', data[key]['beds'] + [k['target_capture_kit_target_region']])])
-
-
-
-bad_kits=['Gapfiller_7m','NimbleGen Sequence Capture 2.1M Human Exome Array']
-bad_beds=['https://bitbucket.org/cghub/cghub-capture-kit-info/raw/c38c4b9cb500b724de46546fd52f8d532fd9eba9/BI/vendor/Agilent/tcga_6k_genes.targetIntervals.bed',
-'https://bitbucket.org/cghub/cghub-capture-kit-info/raw/c38c4b9cb500b724de46546fd52f8d532fd9eba9/BI/vendor/Agilent/cancer_2000gene_shift170.targetIntervals.bed']
-
-bad_samples = []
-null_samples = []
-
-for sample in tcga_sample_table['Tumor_Sample_Barcode']:
-    sample = sample[:15]
-    if sample not in data:
-        null_samples.append(sample)
-    else:
-        X = False
-        for kit, bed in zip(data[sample]['kits'], data[sample]['beds']):
-            if not kit:
-                null_samples.append(sample)
-            else:
-                for sub_kit, sub_bed in zip(kit.split('|'), bed.split('|')):
-                    if sub_kit not in bad_kits:
-                        if sub_bed not in bad_beds:
-                            X = True
-                            break
-        if X == False:
-            bad_samples.append(sample)
-
-##add columns to the sample table
-tcga_sample_table['Exome_Covered'] = ~tcga_sample_table['Tumor_Sample_Barcode'].str[:15].isin(bad_samples + null_samples)
-tcga_sample_table['Exome_Unknown'] = tcga_sample_table['Tumor_Sample_Barcode'].str[:15].isin(null_samples)
 
 ##sample table is done, save to file
 pickle.dump(tcga_sample_table, open(file_path / 'tcga_sample_table.pkl', 'wb'))
@@ -218,6 +193,7 @@ gff = pd.read_csv(file_path / 'Homo_sapiens.GRCh37.87.gff3',
 
 
 gff_cds_pr = pr.PyRanges(gff.loc[(gff['gene_part'] == 'CDS') & gff['chr'].isin(chromosomes), ['chr', 'start', 'end', 'gene_info']].astype({'start': int, 'end': int}).rename(columns={'chr': 'Chromosome', 'start': 'Start', 'end': 'End'})).merge()
+
 gff_exon_pr = pr.PyRanges(gff.loc[(gff['gene_part'] == 'exon') & gff['chr'].isin(chromosomes), ['chr', 'start', 'end', 'gene_info']].astype({'start': int, 'end': int}).rename(columns={'chr': 'Chromosome', 'start': 'Start', 'end': 'End'})).merge()
 del gff
 
