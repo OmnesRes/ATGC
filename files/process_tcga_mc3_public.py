@@ -17,6 +17,8 @@ file_path = cwd / 'files/'
 tcga_sample_table = pd.read_csv(file_path / 'TCGA-CDR-SupplementalTableS1.tsv', sep='\t').iloc[:, 1:]
 tcga_sample_table['histological_type'].fillna('', inplace=True)
 
+
+
 # load pathology annotations from asb
 tumor_types = pd.read_csv(file_path / 'tumor_types_NCI-T.csv', sep='\t')
 tumor_types.fillna('', inplace=True)
@@ -40,6 +42,7 @@ def get_overlap(tumor):
     tumor_df = tcga_maf.loc[tcga_maf['Tumor_Sample_Barcode'] == tumor].sort_values(['Start_Position'])
     ##merge sequential SNPs into a single mutation
     dfs = []
+    problems = []
     for i in tumor_df['Chromosome'].unique():
         result = tumor_df.loc[(tumor_df['Chromosome'] == i) & (tumor_df['Variant_Type'] == 'SNP')].copy()
         if len(result) > 1:
@@ -60,12 +63,12 @@ def get_overlap(tumor):
                                 break
                         position = last
                         last -= 1
-                        indexes_to_remove += list(range(first, last + 1))
                         ref = ''
                         alt = ''
                         variant = result.iloc[[first]].copy()
                         variant['End_Position'] = result.iloc[last]['Start_Position']
                         variant['Variant_Classification'] = 'Missense_Mutation'
+                        variant['Variant_Classification']
                         if last - first == 1:
                             type = 'DNP'
                         elif last - first == 2:
@@ -73,12 +76,31 @@ def get_overlap(tumor):
                         else:
                             type = 'ONP'
                         variant['Variant_Type'] = type
+                        variant['Consequence'] = 'missense_variant'
+                        variant['CONTEXT'] = False
+                        alt_counts = []
+                        ref_counts = []
                         for row in result.iloc[first:last + 1, :].itertuples():
                             ref += row.Reference_Allele
                             alt += row.Tumor_Seq_Allele2
+                            ref_counts.append(row.t_ref_count)
+                            alt_counts.append(row.t_alt_count)
+                        variant['t_ref_count'] = min(ref_counts)
+                        variant['t_alt_count'] = min(alt_counts)
                         variant['Reference_Allele'] = ref
                         variant['Tumor_Seq_Allele2'] = alt
-                        merged.append(variant)
+                        ##decide whether or not to merge
+                        mean_vaf = np.mean([alt / (ref + alt) for ref, alt in zip(ref_counts, alt_counts)])
+                        vaf_deviation = max([np.abs(mean_vaf - (alt / (ref + alt))) / mean_vaf for ref, alt in zip(ref_counts, alt_counts)])
+                        ref_mean = max(np.mean(ref_counts), .00001)
+                        ref_deviation_percent = max([np.abs(ref_mean - ref) / ref_mean for ref in ref_counts])
+                        ref_deviation =max([np.abs(ref_mean - ref) for ref in ref_counts])
+                        alt_mean = np.mean(alt_counts)
+                        alt_deviation_percent = max([np.abs(alt_mean - alt) / alt_mean for alt in alt_counts])
+                        alt_deviation = max([np.abs(alt_mean - alt) for alt in alt_counts])
+                        if vaf_deviation < .05 or alt_deviation_percent < .05 or ref_deviation_percent < .05 or alt_deviation < 5 or ref_deviation < 5:
+                            indexes_to_remove += list(range(first, last + 1))
+                            merged.append(variant)
                         break
             result = result[~np.array([i in indexes_to_remove for i in range(len(result))])]
             if len(result) > 0 and len(merged) > 0:
@@ -97,6 +119,16 @@ def get_overlap(tumor):
 # with concurrent.futures.ProcessPoolExecutor(max_workers=15) as executor:
 #     for tumor, result in tqdm(zip(tumor_to_bed.keys(), executor.map(get_overlap, tumor_to_bed.keys()))):
 #         data[tumor] = result
+
+data = {}
+with concurrent.futures.ProcessPoolExecutor(max_workers=40) as executor:
+    for tumor, result in tqdm(zip(tcga_maf['Tumor_Sample_Barcode'].unique(), executor.map(get_overlap, tcga_maf['Tumor_Sample_Barcode'].unique()))):
+        data[tumor] = result
+
+
+##need to merge chr 1, 12725999, 12726000, TCGA-FW-A3R5-06A-11D-A23B-08
+
+
 
 
 ##do the bed intersections here, get sizes for sample table
