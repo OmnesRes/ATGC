@@ -38,11 +38,20 @@ hotspots = hotspots[['#CHROM', 'POS', 'REF', 'ALT']]
 hotspots.drop_duplicates(inplace=True)
 
 
+
+##there's a TNP that should only be merged into a DNP, remove the SNP then add it back
+##need to merge chr 1, 12725999, 12726000, TCGA-FW-A3R5-06A-11D-A23B-08
+temp = tcga_maf.loc[(tcga_maf['Tumor_Sample_Barcode'] == 'TCGA-FW-A3R5-06A-11D-A23B-08') &\
+                    (tcga_maf['Chromosome'] == '1') & (tcga_maf['Start_Position'] == 12725998)].copy()
+
+tcga_maf = tcga_maf.loc[~((tcga_maf['Tumor_Sample_Barcode'] == 'TCGA-FW-A3R5-06A-11D-A23B-08') &\
+                    (tcga_maf['Chromosome'] == '1') & (tcga_maf['Start_Position'] == 12725998))]
+
+
 def get_overlap(tumor):
     tumor_df = tcga_maf.loc[tcga_maf['Tumor_Sample_Barcode'] == tumor].sort_values(['Start_Position'])
     ##merge sequential SNPs into a single mutation
     dfs = []
-    problems = []
     for i in tumor_df['Chromosome'].unique():
         result = tumor_df.loc[(tumor_df['Chromosome'] == i) & (tumor_df['Variant_Type'] == 'SNP')].copy()
         if len(result) > 1:
@@ -94,7 +103,7 @@ def get_overlap(tumor):
                         vaf_deviation = max([np.abs(mean_vaf - (alt / (ref + alt))) / mean_vaf for ref, alt in zip(ref_counts, alt_counts)])
                         ref_mean = max(np.mean(ref_counts), .00001)
                         ref_deviation_percent = max([np.abs(ref_mean - ref) / ref_mean for ref in ref_counts])
-                        ref_deviation =max([np.abs(ref_mean - ref) for ref in ref_counts])
+                        ref_deviation = max([np.abs(ref_mean - ref) for ref in ref_counts])
                         alt_mean = np.mean(alt_counts)
                         alt_deviation_percent = max([np.abs(alt_mean - alt) / alt_mean for alt in alt_counts])
                         alt_deviation = max([np.abs(alt_mean - alt) for alt in alt_counts])
@@ -125,8 +134,8 @@ with concurrent.futures.ProcessPoolExecutor(max_workers=40) as executor:
     for tumor, result in tqdm(zip(tcga_maf['Tumor_Sample_Barcode'].unique(), executor.map(get_overlap, tcga_maf['Tumor_Sample_Barcode'].unique()))):
         data[tumor] = result
 
-
-##need to merge chr 1, 12725999, 12726000, TCGA-FW-A3R5-06A-11D-A23B-08
+tcga_maf = pd.concat([data[i] for i in data] + [temp], ignore_index=True)
+del data
 
 
 
