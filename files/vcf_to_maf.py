@@ -35,7 +35,7 @@ for index, row in enumerate(maf.itertuples()):
         refs.append(row.REF[position:])
         alts.append(row.ALT[position:])
         starts.append(row.POS + position)
-        ends.append(row.POS + position)
+        ends.append(row.POS + position + len(row.REF_ALLELE[position:]) - 1)
 
 
 maf['new_ref'] = refs
