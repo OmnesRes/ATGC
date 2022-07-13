@@ -27,7 +27,9 @@ tcga_maf = tcga_maf.loc[~pd.isna(tcga_maf['Tumor_Seq_Allele2'])]
 
 tumor_to_normal = {}
 
-for i in tcga_maf.itertuples():
+grouped = tcga_maf[['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode']].groupby(['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode']).size().reset_index()
+
+for i in grouped.itertuples():
     tumor_to_normal[i.Tumor_Sample_Barcode] = tumor_to_normal.get(i.Tumor_Sample_Barcode, []) + [i.Matched_Norm_Sample_Barcode]
 
 for i in tumor_to_normal:
