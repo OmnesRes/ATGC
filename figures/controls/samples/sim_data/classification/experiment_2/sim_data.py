@@ -9,7 +9,7 @@ else:
 
 ##random witness rate
 def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250, 300],
-                    control=True, positive_choices=None, negative_instances=False):
+                    control=True, positive_choices=None, negative_instances=False, fixed=['five_p']):
     if negative_instances and len(positive_choices) <= 1:
         raise ValueError
     center = np.random.choice(mean_variants, 1)
@@ -38,7 +38,7 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
         while True:
             y = False
             for i in control_variants:
-                if check_variant(i, positive_choices):
+                if check_variant(i, positive_choices, to_check=fixed):
                     print('checked')
                     y = True
                     break
@@ -51,7 +51,16 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
         if negative_instances:
             positive_choice = int(np.random.choice(range(len(positive_choices)), 1))
             for i in range(positive_count):
-                positive_variants.append(positive_choices[positive_choice])
+                positive_variant = list(generate_variant())
+                if 'five_p' in fixed:
+                    positive_variant[0] = positive_choices[positive_choice][0]
+                if 'three_p' in fixed:
+                    positive_variant[1] = positive_choices[positive_choice][1]
+                if 'ref' in fixed:
+                    positive_variant[2] = positive_choices[positive_choice][2]
+                if 'alt' in fixed:
+                    positive_variant[3] = positive_choices[positive_choice][3]
+                positive_variants.append(positive_variant)
                 positive_instances.append(positive_choice + 1)
         else:
             pass
@@ -59,7 +68,16 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
     else:
         for index, i in enumerate(positive_choices):
             for ii in range(positive_counts[index]):
-                positive_variants.append(i)
+                positive_variant = list(generate_variant())
+                if 'five_p' in fixed:
+                    positive_variant[0] = i[0]
+                if 'three_p' in fixed:
+                    positive_variant[1] = i[1]
+                if 'ref' in fixed:
+                    positive_variant[2] = i[2]
+                if 'alt' in fixed:
+                    positive_variant[3] = i[3]
+                positive_variants.append(positive_variant)
                 positive_instances.append(index + 1)
 
     return [control_variants + positive_variants, [0] * len(control_variants) + positive_instances]
@@ -103,6 +121,15 @@ for idx in range(1000):
 
 for i in instances:
     instances[i] = np.array(instances[i])
+
+
+def get_context(five_p, three_p, ref, alt):
+    if ref[0] == 'T' or ref[0] == 'C':
+        return five_p[-1] + ref[0] + alt[0] + three_p[0]
+    else:
+        return str(Seq(three_p[0]).reverse_complement()) + str(Seq(ref[0]).reverse_complement()) + str(Seq(alt[0]).reverse_complement()) + str(Seq(five_p[-1]).reverse_complement())
+
+instances['context'] = [get_context(i, j, k, l) for i,j,k,l in zip(instances['seq_5p'], instances['seq_3p'], instances['seq_ref'], instances['seq_alt'])]
 
 nucleotide_mapping = {'-': 0, 'N': 0, 'A': 1, 'T': 2, 'C': 3, 'G': 4}
 instances['seq_5p'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_5p']), axis=0)

@@ -10,10 +10,10 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 import pathlib
 path = pathlib.Path.cwd()
 
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -78,8 +78,8 @@ histories = []
 evaluations = []
 weights = []
 for i in range(3):
-    tile_encoder = InstanceModels.VariantSequenceStacked(6, 4, 2, [16, 16, 8, 8])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dims=[2], pooling='dynamic')
+    tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dims=[2], pooling='sum')
     # mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dims=[2], pooling='both', pooled_layers=[32, ])
     losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
     mil.model.compile(loss=losses,

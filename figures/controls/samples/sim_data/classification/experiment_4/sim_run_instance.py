@@ -18,7 +18,7 @@ else:
     sys.path.append(str(cwd))
 
 ##load the instance and sample data
-D, samples = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_5' / 'sim_data.pkl', 'rb'))
 
 ##perform embeddings with a zero vector for index 0
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
@@ -51,8 +51,8 @@ ds_train = ds_train.map(lambda x: ((five_p_loader(x, ragged_output=True),
                                        ref_loader(x, ragged_output=True),
                                        alt_loader(x, ragged_output=True),
                                        strand_loader(x, ragged_output=True)),
-                                      tf.gather(y_label, x)
-                                      ))
+                                   tf.gather(y_label, x)
+                                   ))
 
 ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, y_label[idx_valid]))
 ds_valid = ds_valid.batch(len(idx_valid), drop_remainder=False)
@@ -78,7 +78,7 @@ evaluations = []
 weights = []
 for i in range(3):
     tile_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8])
-    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='sum')
+    mil = RaggedModels.MIL(instance_encoders=[tile_encoder.model], output_dim=2, pooling='mean')
     losses = [tf.keras.losses.CategoricalCrossentropy(from_logits=True)]
     mil.model.compile(loss=losses,
                       metrics=['accuracy', tf.keras.metrics.CategoricalCrossentropy(from_logits=True)],
@@ -92,5 +92,5 @@ for i in range(3):
     weights.append(mil.model.get_weights())
 
 
-with open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'instance_model_sum.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_5' / 'instance_model_mean.pkl', 'wb') as f:
     pickle.dump([evaluations, histories, weights], f)

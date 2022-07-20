@@ -12,22 +12,22 @@ else:
     import sys
     sys.path.append(str(cwd))
 
-D, samples = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'sim_data.pkl', 'rb'))
 
-instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'instance_model_sum.pkl', 'rb'))
-instance_mean_evaluations, instance_mean_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'instance_model_mean.pkl', 'rb'))
-sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'sample_model_sum.pkl', 'rb'))
-sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'sample_model_mean.pkl', 'rb'))
-sample_sum_attention_evaluations, sample_sum_attention_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'sample_model_attention_sum.pkl', 'rb'))
-sample_mean_attention_evaluations, sample_mean_attention_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'sample_model_attention_mean.pkl', 'rb'))
-sample_both_attention_evaluations, sample_both_attention_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'sample_model_attention_both.pkl', 'rb'))
-sample_dynamic_attention_evaluations, sample_dynamic_attention_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'sample_model_attention_dynamic.pkl', 'rb'))
-
+instance_sum_evaluations, instance_sum_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'instance_model_sum.pkl', 'rb'))
+instance_mean_evaluations, instance_mean_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'instance_model_mean.pkl', 'rb'))
+sample_sum_evaluations, sample_sum_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'sample_model_sum.pkl', 'rb'))
+sample_mean_evaluations, sample_mean_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'sample_model_mean.pkl', 'rb'))
+sample_sum_attention_evaluations, sample_sum_attention_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'sample_model_attention_sum.pkl', 'rb'))
+sample_mean_attention_evaluations, sample_mean_attention_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'sample_model_attention_mean.pkl', 'rb'))
+sample_both_attention_evaluations, sample_both_attention_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'sample_model_attention_both.pkl', 'rb'))
+sample_dynamic_attention_evaluations, sample_dynamic_attention_histories, weights = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'sample_model_attention_dynamic.pkl', 'rb'))
 
 losses = np.array([i[-1] for i in instance_mean_evaluations + instance_sum_evaluations +\
                    sample_mean_evaluations + sample_sum_evaluations +\
                    sample_mean_attention_evaluations + sample_sum_attention_evaluations +\
                    sample_both_attention_evaluations + sample_dynamic_attention_evaluations])
+
 losses = losses / max(losses)
 
 metrics = [-i[1] for i in instance_mean_evaluations + instance_sum_evaluations + \
@@ -36,10 +36,10 @@ metrics = [-i[1] for i in instance_mean_evaluations + instance_sum_evaluations +
                    sample_both_attention_evaluations + sample_dynamic_attention_evaluations]
 
 
-epochs = np.array([len(i['val_categorical_crossentropy']) - 50 for i in instance_mean_histories + instance_sum_histories + \
-                   sample_mean_histories + sample_sum_histories +\
-                   sample_mean_attention_histories + sample_sum_attention_histories+\
-                   sample_both_attention_histories + sample_dynamic_attention_histories])
+epochs = np.array([len(i['val_categorical_crossentropy']) - 20 for i in instance_mean_histories + instance_sum_histories]
+                  + [len(i['val_categorical_crossentropy']) - 20 for i in sample_mean_histories + sample_sum_histories +\
+                     sample_mean_attention_histories + sample_sum_attention_histories+\
+                     sample_both_attention_histories + sample_dynamic_attention_histories])
 epochs = epochs / max(epochs)
 
 ##create custom colorblind friendly cmap
@@ -82,7 +82,6 @@ ax2.spines['top'].set_visible(False)
 ax2.spines['right'].set_visible(False)
 ax2.spines['left'].set_visible(False)
 ax2.spines['bottom'].set_visible(False)
-
-plt.savefig(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'figure.pdf')
+plt.savefig(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'figure.pdf')
 
 

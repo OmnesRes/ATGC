@@ -14,12 +14,12 @@ else:
     import sys
     sys.path.append(str(cwd))
 
-D, samples = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'sim_data.pkl', 'rb'))
+D, samples = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'sim_data.pkl', 'rb'))
 
-idx_test, mean_attentions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'mean_attentions.pkl', 'rb'))
-idx_test, sum_attentions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'sum_attentions.pkl', 'rb'))
-idx_test, both_attentions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'both_attentions.pkl', 'rb'))
-idx_test, dynamic_attentions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'dynamic_attentions.pkl', 'rb'))
+idx_test, mean_attentions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'mean_attentions.pkl', 'rb'))
+idx_test, sum_attentions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'sum_attentions.pkl', 'rb'))
+idx_test, both_attentions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'both_attentions.pkl', 'rb'))
+idx_test, dynamic_attentions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'dynamic_attentions.pkl', 'rb'))
 
 
 idx_test = idx_test[:20]
@@ -33,7 +33,7 @@ for i in indexes:
 types = np.concatenate(classes).shape[0] * [0] + np.concatenate(classes).shape[0] * [1] + np.concatenate(classes).shape[0] * [2] + np.concatenate(classes).shape[0] * [3]
 classes = np.concatenate([np.concatenate(classes), np.concatenate(classes) + 2, np.concatenate(classes) + 4, np.concatenate(classes) + 6])
 attention = np.concatenate([np.concatenate(mean_attentions[0][:20]),
-                            np.concatenate(sum_attentions[0][:20]),
+                            np.concatenate(sum_attentions[2][:20]),
                             np.concatenate(both_attentions[1][:20]),
                             np.concatenate(dynamic_attentions[1][:20])])
 
@@ -57,8 +57,8 @@ ax.spines['bottom'].set_visible(False)
 ax.spines['left'].set_visible(False)
 ax.set_yticks([])
 ax.set_xticks([])
-ax.set_xlabel('')
 ax.set_ylabel('Attention', fontsize=24, labelpad=-10)
+ax.set_xlabel('')
 ax.get_legend().remove()
-plt.savefig(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_3' / 'attention.png', dpi=300)
+plt.savefig(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'attention.png', dpi=300)
 

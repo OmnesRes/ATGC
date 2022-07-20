@@ -2,49 +2,66 @@ from figures.controls.samples.sim_data.sim_data_tools import *
 import pickle
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC':
+if path.stem == 'ATGC2':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
 
 
 ##random witness rate
 def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250, 300],
                     control=True, positive_choices=None, negative_instances=False):
-
     center = np.random.choice(mean_variants, 1)
     total_count = int(np.random.normal(center, int(np.ceil(center * .2))))
-    if total_count <= 0:
-        total_count = 1
-    total_count = int(round(np.ceil(total_count / 10), 0) * 10)
+    if total_count < 1:
+        total_count *= -1
+    if total_count == 0:
+        total_count = np.random.choice([2, 3, 4, 5, 6], 1)
     if control:
-        positive_counts = [int(.1 * total_count)]
+        if negative_instances:
+            positive_count = int(np.ceil(np.random.random() * total_count))
+            control_count = total_count - positive_count
+        else:
+            control_count = total_count
+            positive_count = 0
     else:
-        positive_counts = [int(.2 * total_count)]
-
-    control_count = total_count - sum(positive_counts)
+        positive_counts = [int(np.ceil(np.random.random() / len(positive_choices) * total_count)) for i in positive_choices]
+        control_count = total_count - sum(positive_counts)
 
     control_count = max(control_count, 0)
     positive_variants = []
     positive_instances = []
 
     control_variants = [generate_variant() for i in range(control_count)]
-    while True:
-        y = False
-        for i in control_variants:
-            if check_variant(i, positive_choices):
-                print('checked')
-                y = True
+    if control:
+        while True:
+            y = False
+            for i in control_variants:
+                if check_variant(i, positive_choices):
+                    print('checked')
+                    y = True
+                    break
+            if y:
+                control_variants = [generate_variant() for i in range(control_count)]
+            else:
                 break
-        if y:
-            control_variants = [generate_variant() for i in range(control_count)]
-        else:
-            break
 
-    for index, i in enumerate(positive_choices):
-        for ii in range(positive_counts[index]):
-            positive_variants.append(i)
-            positive_instances.append(index + 1)
+    if control:
+        if negative_instances:
+            for i in range(positive_count):
+                ##get variants that either have the same sequence or position
+                positive_variants.append(list(positive_choices[0])[:4] + list(generate_variant()[4:-1]) + [positive_choices[0][-1]])
+                positive_instances.append(1)
+                positive_variants.append(list(generate_variant())[:4] + list(positive_choices[0])[4:-1] + [generate_variant()[-1]])
+                positive_instances.append(1)
+        else:
+            pass
+
+    else:
+        for index, i in enumerate(positive_choices):
+            for ii in range(positive_counts[index]):
+                positive_variants.append(i)
+                positive_instances.append(index + 1)
 
     return [control_variants + positive_variants, [0] * len(control_variants) + positive_instances]
 
@@ -69,7 +86,7 @@ samples = {'classes': []}
 for idx in range(1000):
     ##what percent of samples are control
     if np.random.sample() < .5:
-        variants = generate_sample(positive_choices=positive_choices)
+        variants = generate_sample(positive_choices=positive_choices, negative_instances=True)
         samples['classes'] = samples['classes'] + [0]
     else:
         variants = generate_sample(control=False, positive_choices=positive_choices)
@@ -108,7 +125,7 @@ t[i] = variant_encoding[instances['seq_alt'][:, ::-1]][i[:, ::-1]]
 instances['seq_alt'] = np.stack([instances['seq_alt'], t], axis=2)
 del i, t
 
-with open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_5' / 'sim_data.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'fusion' / 'experiment_1' / 'sim_data.pkl', 'wb') as f:
     pickle.dump([instances, samples, ], f)
 
 
