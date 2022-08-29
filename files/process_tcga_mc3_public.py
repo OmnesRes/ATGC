@@ -9,10 +9,10 @@ import pathlib
 from tqdm import tqdm
 import re
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
 ##your path to the files directory
 file_path = cwd / 'files/'
 
@@ -53,6 +53,7 @@ cmd = ['ls', 'files/beds']
 p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 files = [str(i, 'utf-8') for i in p.communicate()[0].split() if '.bed' in str(i)[-5:]]
 
+
 tumor_to_bed = {}
 for i in tumor_to_normal:
     if i in sample_to_id and list(tumor_to_normal[i])[0] in sample_to_id:
@@ -81,6 +82,7 @@ def get_overlap(tumor):
         return None
     bed_df = bed_df.loc[bed_df['Chromosome'].isin(chromosomes)]
     bed_pr = pr.PyRanges(bed_df).merge()
+    bed_size = sum([i + 1 for i in bed_pr.lengths()])
     tumor_df = tcga_maf.loc[tcga_maf['Tumor_Sample_Barcode'] == tumor]
     tumor_df['index'] = tumor_df.index.values
     tumor_pr = pr.PyRanges(tumor_df[['Chromosome', 'Start_Position', 'End_Position', 'index']].rename(columns={'Start_Position': 'Start', 'End_Position': 'End'}))
@@ -161,15 +163,14 @@ def get_overlap(tumor):
         else:
             dfs.append(result)
     tumor_df = pd.concat([pd.concat(dfs, ignore_index=True), tumor_df.loc[tumor_df['Variant_Type'] != 'SNP'].copy()], ignore_index=True)
-    return tumor_df
+    return tumor_df, bed_size
 
 data = {}
 with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
     for tumor, result in tqdm(zip(tumor_to_bed.keys(), executor.map(get_overlap, tumor_to_bed.keys()))):
         data[tumor] = result
 
-tcga_maf = pd.concat([data[i] for i in data if data[i] is not None] + [temp], ignore_index=True)
-del data
+tcga_maf = pd.concat([data[i][0] for i in data if data[i] is not None] + [temp], ignore_index=True)
 
 def left_align(chr, start, seq):
     while True:
@@ -285,12 +286,13 @@ with open(file_path / 'tcga_public_maf.pkl', 'wb') as f:
 tcga_sample_table = pd.read_csv(file_path / 'TCGA-CDR-SupplementalTableS1.tsv', sep='\t').iloc[:, 1:]
 tcga_sample_table['histological_type'].fillna('', inplace=True)
 tcga_sample_table = tcga_sample_table.loc[tcga_sample_table['bcr_patient_barcode'].isin(tcga_maf['Tumor_Sample_Barcode'].str[:12].unique())]
-
 patient_to_sample = {i[:12]: i[:16] for i in tcga_maf['Tumor_Sample_Barcode'].unique()}
 patient_to_barcode = {i[:12]: i for i in tcga_maf['Tumor_Sample_Barcode'].unique()}
 
 tcga_sample_table['bcr_sample_barcode'] = tcga_sample_table['bcr_patient_barcode'].apply(lambda x: patient_to_sample[x])
 tcga_sample_table['Tumor_Sample_Barcode'] = tcga_sample_table['bcr_patient_barcode'].apply(lambda x: patient_to_barcode[x])
+tcga_sample_table['coverage'] = tcga_sample_table['Tumor_Sample_Barcode'].apply(lambda x: data[x][1])
+
 
 ncit = pd.read_csv(file_path / 'NCIt_labels.tsv', sep='\t')
 ncit.fillna('', inplace=True)
