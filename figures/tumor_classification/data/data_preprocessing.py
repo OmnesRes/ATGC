@@ -15,7 +15,7 @@ else:
 tcga_maf = pickle.load(open(cwd / 'files' / 'tcga_public_maf.pkl', 'rb'))
 samples = pickle.load(open(cwd / 'files' / 'tcga_public_sample_table.pkl', 'rb'))
 ##there's a bad sample with nans
-tcga_maf.dropna(inplace=True)
+tcga_maf.dropna(inplace=True, subset=['Reference_Allele', 'Tumor_Seq_Allele2'])
 
 samples.reset_index(inplace=True, drop=True)
 tcga_maf.reset_index(inplace=True, drop=True)
