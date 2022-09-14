@@ -26,13 +26,33 @@ tcga_maf = tcga_maf.loc[:, ['Tumor_Sample_Barcode', 'Hugo_Symbol']]
 gene_df = tcga_maf.groupby(['Tumor_Sample_Barcode', "Hugo_Symbol"]).size().unstack(fill_value=0)
 gene_df = pd.DataFrame.from_dict({'Tumor_Sample_Barcode': gene_df.index, 'gene_counts': gene_df.values.tolist()})
 
-samples['type'] = samples['type'].apply(lambda x: 'COAD' if x == 'READ' else x)
-class_counts = dict(samples['type'].value_counts())
-labels_to_use = [i for i in class_counts if class_counts[i] > 125]
-samples = samples.loc[samples['type'].isin(labels_to_use)]
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'PCPG' if x == 'Paraganglioma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'PCPG' if x == 'Pheochromocytoma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Desmoid-Type Fibromatosis' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Leiomyosarcoma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Liposarcoma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Malignant Peripheral Nerve Sheath Tumor' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Myxofibrosarcoma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Synovial Sarcoma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Undifferentiated Pleomorphic Sarcoma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'TGCT' if x == 'Testicular Non-Seminomatous Germ Cell Tumor' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'TGCT' if x == 'Testicular Seminoma' else x)
+
+labels_to_use = ['Muscle-Invasive Bladder Carcinoma', 'Infiltrating Ductal Breast Carcinoma',
+                 'Invasive Lobular Breast Carcinoma', 'Cervical Squamous Cell Carcinoma',
+                 'Colorectal Adenocarcinoma', 'Glioblastoma', 'Head and Neck Squamous Cell Carcinoma',
+                 'Clear Cell Renal Cell Carcinoma', 'Papillary Renal Cell Carcinoma',
+                 'Astrocytoma', 'Oligoastrocytoma', 'Oligodendroglioma', 'Hepatocellular Carcinoma',
+                 'Lung Adenocarcinoma', 'Lung Squamous Cell Carcinoma', 'Ovarian Serous Adenocarcinoma',
+                 'Adenocarcinoma, Pancreas', 'PCPG', 'Prostate Acinar Adenocarcinoma',
+                 'SARC', 'Cutaneous Melanoma', 'Gastric Adenocarcinoma',
+                 'TGCT', 'Thyroid Gland Follicular Carcinoma', 'Thyroid Gland Papillary Carcinoma',
+                 'Endometrial Endometrioid Adenocarcinoma', 'Endometrial Serous Adenocarcinoma']
+
+samples = samples.loc[samples['NCIt_label'].isin(labels_to_use)]
 samples = pd.merge(samples, gene_df, on='Tumor_Sample_Barcode', how='left')
 
-A = samples['type'].astype('category')
+A = samples['NCIt_label'].astype('category')
 classes = A.cat.categories.values
 classes_onehot = np.eye(len(classes))[A.cat.codes]
 y_label = classes_onehot
@@ -122,7 +142,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
     weights.append(run_weights)
     evaluations.append(temp_evaluations)
 
-with open(cwd / 'figures' / 'tumor_classification' / 'project' / 'neural_net' / 'results' / 'gene_weights.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'tumor_classification' / 'ncit' / 'neural_net' / 'results' / 'gene_weights.pkl', 'wb') as f:
     pickle.dump([test_idx, weights], f)
 
 P = np.concatenate(predictions)
@@ -130,13 +150,13 @@ P = np.concatenate(predictions)
 z = np.exp(P - np.max(P, axis=1, keepdims=True))
 predictions = z / np.sum(z, axis=1, keepdims=True)
 
-with open(cwd / 'figures' / 'tumor_classification' / 'project' / 'neural_net' / 'results' / 'gene_predictions.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'tumor_classification' / 'ncit' / 'neural_net' / 'results' / 'gene_predictions.pkl', 'wb') as f:
     pickle.dump([predictions, y_label, test_idx], f)
 
 print(np.sum((np.argmax(predictions, axis=-1) == np.argmax(y_label[np.concatenate(test_idx)], axis=-1)) * y_weights[np.concatenate(test_idx)]))
 print(sum(np.argmax(predictions, axis=-1) == np.argmax(y_label[np.concatenate(test_idx)], axis=-1)) / len(y_label))
 print(roc_auc_score(np.argmax(y_label[np.concatenate(test_idx)], axis=-1), predictions, multi_class='ovr'))
 
-# 0.5333120820875511
-# 0.5600042368393179
-# 0.9291161423827727
+# 0.5088390462079297
+# 0.5427609427609428
+# 0.9279917230121018

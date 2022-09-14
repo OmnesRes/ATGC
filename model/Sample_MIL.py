@@ -1,7 +1,23 @@
 import tensorflow as tf
-from model.KerasLayers import Activations, Ragged, Embed, StrandWeight
+from model.KerasLayers import Activations, Ragged, Embed, StrandWeight, Dropout, Norm
 
 class InstanceModels:
+
+    class GeneEmbed:
+        def __init__(self, shape=None, dim=None, input_dim=None, regularization=.01):
+            self.shape = shape
+            self.regularization = regularization
+            self.input_dim = input_dim
+            self.dim = dim
+            self.model = None
+            self.build()
+
+        def build(self, *args, **kwarg):
+            input = tf.keras.layers.Input(self.shape, dtype=tf.int32)
+            output = Embed(input_dimension=self.input_dim, embedding_dimension=self.dim, regularization=self.regularization, trainable=True)(input)
+            ##we do a log on the graph so we can't have negative numbers
+            output = tf.keras.activations.relu(output)
+            self.model = tf.keras.Model(inputs=[input], outputs=[output])
 
     class VariantPositionBin:
         def __init__(self, bins, fusion_dimension=128, default_activation=tf.keras.activations.relu):
@@ -22,6 +38,28 @@ class InstanceModels:
             fused = tf.concat([bins_fused, pos_loc], axis=-1)
             fused = tf.keras.layers.Dense(units=self.fusion_dimension, activation=Activations.ARU())(fused)
             self.model = tf.keras.Model(inputs=bin_inputs + [pos_input], outputs=[fused])
+
+
+    class VariantBin:
+        def __init__(self, bins, layers=[], default_activation=tf.keras.activations.relu, fused_dropout=0, layer_dropout=0):
+            self.bins = bins
+            self.layers = layers
+            self.default_activation = default_activation
+            self.layer_dropout = layer_dropout
+            self.fused_dropout = fused_dropout
+            self.model = None
+            self.build()
+
+        def build(self, *args, **kwargs):
+            bin_inputs = [tf.keras.layers.Input(shape=(), dtype=tf.int32) for i in self.bins]
+            embeds = [Embed(embedding_dimension=i, trainable=False) for i in self.bins]
+            bins_fused = [tf.concat([emb(i) for i, emb in zip(bin_inputs, embeds)], axis=-1)]
+            if self.fused_dropout:
+                bins_fused.append(tf.keras.layers.Dropout(self.fused_dropout)(bins_fused[-1]))
+            for index, i in enumerate(self.layers):
+                bins_fused.append(tf.keras.layers.Dense(units=i, activation=self.default_activation)(bins_fused[-1]))
+                bins_fused.append(tf.keras.layers.Dropout(self.layer_dropout)(bins_fused[-1]))
+            self.model = tf.keras.Model(inputs=bin_inputs, outputs=[bins_fused[-1]])
 
 
     class VariantSequence:
@@ -58,6 +96,8 @@ class InstanceModels:
             fused = tf.concat(features, axis=2)
             fused = tf.keras.layers.Dense(units=self.fusion_dimension, activation=self.default_activation, kernel_regularizer=tf.keras.regularizers.l2(self.regularization))(fused)
             fused = tf.reduce_max(StrandWeight(trainable=True, n_features=fused.shape[2])(strand) * fused, axis=1)
+            # fused = tf.reduce_mean(StrandWeight(trainable=True, n_features=fused.shape[2])(strand) * fused, axis=1)
+            # fused = fused - tf.reduce_mean(fused, axis=-1, keepdims=True)
 
             if self.use_frame:
                 cds = tf.keras.layers.Input(shape=(3,), dtype=tf.float32)
@@ -67,6 +107,47 @@ class InstanceModels:
                 self.model = tf.keras.Model(inputs=[five_p, three_p, ref, alt, strand, cds], outputs=[fused])
             else:
                 self.model = tf.keras.Model(inputs=[five_p, three_p, ref, alt, strand], outputs=[fused])
+
+    class PassThrough:
+        def __init__(self, shape=None):
+            self.shape = shape
+            self.model = None
+            self.build()
+
+        def build(self, *args, **kwarg):
+            input = tf.keras.layers.Input(self.shape, dtype=tf.float32)
+            self.model = tf.keras.Model(inputs=[input], outputs=[input])
+
+    class Feature:
+        def __init__(self, shape=None, input_dropout=.5, layer_dropouts=[.2, .2], layers=[64, 32], regularization=0):
+            self.shape = shape
+            self.model = None
+            self.input_dropout = input_dropout
+            self.layer_dropouts = layer_dropouts
+            self.layers = layers
+            self.regularization = regularization
+            self.build()
+
+        def build(self, *args, **kwarg):
+            input = tf.keras.layers.Input(self.shape, dtype=tf.float32)
+            hidden = [tf.keras.layers.Dropout(self.input_dropout)(input)]
+            for i, j in zip(self.layers, self.layer_dropouts):
+                hidden.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu, kernel_regularizer=tf.keras.regularizers.l2(self.regularization))(hidden[-1]))
+                hidden.append(tf.keras.layers.Dropout(j)(hidden[-1]))
+            self.model = tf.keras.Model(inputs=[input], outputs=[hidden[-1]])
+
+    class Type:
+        def __init__(self, shape=None, dim=None):
+            self.shape = shape
+            self.dim = dim
+            self.model = None
+            self.build()
+
+        def build(self, *args, **kwarg):
+            input = tf.keras.layers.Input(self.shape, dtype=tf.int32)
+            # type_emb = Embed(embedding_dimension=self.dim, trainable=False)
+            # self.model = tf.keras.Model(inputs=[input], outputs=[type_emb(input)])
+            self.model = tf.keras.Model(inputs=[input], outputs=[tf.one_hot(input, self.dim)])
 
     class Reads:
         def __init__(self, read_layers=[8, 16], fused_layers=[32, 64]):
@@ -91,43 +172,8 @@ class InstanceModels:
             self.model = tf.keras.Model(inputs=[ref_input, alt_input], outputs=[fused[-1]])
 
 
-    class PassThrough:
-        def __init__(self, shape=None):
-            self.shape = shape
-            self.model = None
-            self.build()
-
-        def build(self, *args, **kwarg):
-            input = tf.keras.layers.Input(shape=self.shape, dtype=tf.float32)
-            self.model = tf.keras.Model(inputs=[input], outputs=[input])
-
-
-class SampleModels:
-    class PassThrough:
-        def __init__(self, shape=None):
-            self.shape = shape
-            self.model = None
-            self.build()
-
-        def build(self, *args, **kwarg):
-            input = tf.keras.layers.Input(self.shape, dtype=tf.float32)
-            self.model = tf.keras.Model(inputs=[input], outputs=[input])
-
-    class Type:
-        def __init__(self, shape=None, dim=None):
-            self.shape = shape
-            self.dim = dim
-            self.model = None
-            self.build()
-
-        def build(self, *args, **kwarg):
-            input = tf.keras.layers.Input(self.shape, dtype=tf.int32)
-            type_emb = Embed(embedding_dimension=self.dim, trainable=False)
-            self.model = tf.keras.Model(inputs=[input], outputs=[type_emb(input)])
-
 
 class RaggedModels:
-
     class MIL:
         def __init__(self,
                      instance_encoders=[],
@@ -144,8 +190,49 @@ class RaggedModels:
                      fusion='after',
                      mil_hidden=[32, 16],
                      dynamic_hidden=[64, 32],
-                     attention_layers=[16]):
-            self.instance_encoders, self.sample_encoders, self.instance_layers, self.sample_layers, self.pooled_layers, self.output_dims, self.output_types, self.output_names, self.mode, self.pooling, self.regularization, self.fusion, self.mil_hidden, self.dynamic_hidden, self.attention_layers = instance_encoders, sample_encoders, instance_layers, sample_layers, pooled_layers, output_dims, output_types, output_names, mode, pooling, regularization, fusion, mil_hidden, dynamic_hidden, attention_layers
+                     attention_layers=[16],
+                     dropout=0,
+                     instance_dropout=0,
+                     input_dropout=False,
+                     heads=1):
+            self.instance_encoders,\
+            self.sample_encoders,\
+            self.instance_layers,\
+            self.sample_layers,\
+            self.pooled_layers,\
+            self.output_dims,\
+            self.output_types,\
+            self.output_names,\
+            self.mode,\
+            self.pooling,\
+            self.regularization,\
+            self.fusion,\
+            self.mil_hidden,\
+            self.dynamic_hidden,\
+            self.attention_layers,\
+            self.dropout,\
+            self.instance_dropout,\
+            self.input_dropout,\
+            self.heads = instance_encoders,\
+                         sample_encoders,\
+                         instance_layers,\
+                         sample_layers,\
+                         pooled_layers,\
+                         output_dims,\
+                         output_types,\
+                         output_names,\
+                         mode,\
+                         pooling,\
+                         regularization,\
+                         fusion,\
+                         mil_hidden,\
+                         dynamic_hidden,\
+                         attention_layers,\
+                         dropout,\
+                         instance_dropout,\
+                         input_dropout,\
+                         heads
+
             if self.output_names == []:
                 self.output_names = ['output_' + str(index) for index, i in enumerate(self.output_types)]
             self.model, self.attention_model = None, None
@@ -169,6 +256,9 @@ class RaggedModels:
                 # based on the design of the input and graph instances can be fused prior to bag aggregation
                 ragged_fused = tf.keras.layers.Lambda(lambda x: tf.concat(x, axis=2))(ragged_encodings)
 
+                if self.instance_dropout:
+                    ragged_fused = Ragged.MapFlatValues(tf.keras.layers.Dropout(self.instance_dropout))(ragged_fused)
+
                 if self.sample_encoders != []:
                     if self.fusion == 'before':
                         ragged_hidden = [Ragged.Dense(units=64, activation=tf.keras.activations.relu)((ragged_fused, sample_fused))]
@@ -179,6 +269,8 @@ class RaggedModels:
 
                 for i in self.instance_layers:
                     ragged_hidden.append(Ragged.MapFlatValues(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu))(ragged_hidden[-1]))
+                    if self.dropout:
+                        ragged_hidden.append(Ragged.MapFlatValues(tf.keras.layers.Dropout(self.dropout))(ragged_hidden[-1]))
 
                 if self.mode == 'attention':
                     if self.pooling == 'both':
@@ -194,8 +286,9 @@ class RaggedModels:
                         pooling_2, ragged_attention_weights = Ragged.Attention(pooling='dynamic', regularization=self.regularization, layers=self.attention_layers)([ragged_hidden[-1], instance_ragged_fused[-1]])
                         pooled_hidden = [pooling_2[:, 0, :]]
                     else:
-                        pooling, ragged_attention_weights = Ragged.Attention(pooling=self.pooling, regularization=self.regularization, layers=self.attention_layers)(ragged_hidden[-1])
-                        pooled_hidden = [pooling[:, 0, :]]
+                        pooling, ragged_attention_weights = Ragged.Attention(pooling=self.pooling, regularization=self.regularization, layers=self.attention_layers, heads=self.heads)(ragged_hidden[-1])
+                        pooled_hidden = [pooling]
+
                 else:
                     if self.pooling == 'mean':
                         pooling = tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, axis=ragged_hidden[-1].ragged_rank))(ragged_hidden[-1])
@@ -203,8 +296,16 @@ class RaggedModels:
                         pooling = tf.keras.layers.Lambda(lambda x: tf.reduce_sum(x, axis=ragged_hidden[-1].ragged_rank))(ragged_hidden[-1])
                     pooled_hidden = [pooling]
 
-                for i in self.pooled_layers:
-                    pooled_hidden.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(pooled_hidden[-1]))
+                if self.pooling != 'mean' and self.input_dropout:
+                    pooled_hidden = [Dropout(self.input_dropout)(pooled_hidden[-1])]
+
+                if self.pooling != 'mean':
+                    pooled_hidden = [tf.math.log(pooled_hidden[-1] + 1)]
+
+                aggregation = pooled_hidden[-1]
+
+                # for i in self.pooled_layers:
+                #     pooled_hidden.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(pooled_hidden[-1]))
 
             if self.sample_encoders != []:
                 if self.fusion == 'after':
@@ -212,7 +313,6 @@ class RaggedModels:
                         fused = [tf.concat([pooled_hidden[-1], sample_fused], axis=-1)]
                     else:
                         fused = [sample_fused]
-
                 else:
                     fused = [pooled_hidden[-1]]
 
@@ -222,48 +322,44 @@ class RaggedModels:
             for i in self.sample_layers:
                 fused.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(fused[-1]))
 
+            if self.mode == 'none': #assumes you need a newaxis
+                fused = [fused[-1][:, tf.newaxis, :]]
+                assert self.heads == 1
+
+            head_networks = [[fused[-1][:, head, :]] for head in range(self.heads)]
+
             for i in self.mil_hidden:
-                fused.append(tf.keras.layers.Dense(units=i, activation='relu')(fused[-1]))
-            fused = fused[-1]
+                for head in range(self.heads):
+                    head_networks[head].append(tf.keras.layers.Dense(units=i, activation='relu')(head_networks[head][-1]))
+                    if self.dropout:
+                        head_networks[head].append(tf.keras.layers.Dropout(self.dropout)(head_networks[head][-1]))
+
             output_tensors = []
             for output_type, output_dim, output_name in zip(self.output_types, self.output_dims, self.output_names):
-                if output_type == 'quantiles':
-                    output_layers = (8, 1)
-                    point_estimate, lower_bound, upper_bound = list(), list(), list()
-                    for i in range(len(output_layers)):
-                        point_estimate.append(tf.keras.layers.Dense(units=output_layers[i], activation=None if i == (len(output_layers) - 1) else tf.keras.activations.softplus)(fused if i == 0 else point_estimate[-1]))
-
-                    for l in [lower_bound, upper_bound]:
-                        for i in range(len(output_layers)):
-                            l.append(tf.keras.layers.Dense(units=output_layers[i], activation=tf.keras.activations.softplus)(fused if i == 0 else l[-1]))
-
-                    output_tensors.append(tf.keras.activations.softplus(tf.concat([point_estimate[-1] - lower_bound[-1], point_estimate[-1], point_estimate[-1] + upper_bound[-1]], axis=1, name=output_name)))
-
-                elif output_type == 'survival':
-                    output_layers = (8, 4, 1)
-                    pred = list()
-                    for i in range(len(output_layers)):
-                        pred.append(tf.keras.layers.Dense(units=output_layers[i], activation=None if i == (len(output_layers) - 1) else tf.keras.activations.relu, name=None if i == (len(output_layers) - 1) else output_name)(fused if i == 0 else pred[-1]))
-
-                    output_tensors.append(pred[-1])
-
-                elif output_type == 'regression':
+                if output_type == 'regression':
                     ##assumes log transformed output
-                    pred = tf.keras.layers.Dense(units=output_dim, activation='softplus', name=output_name)(fused)
+                    pred = tf.keras.layers.Dense(units=output_dim, activation='softplus', name=output_name)(fused[-1])
                     output_tensors.append(tf.math.log(pred + 1))
 
                 elif output_type == 'anlulogits':
-                    output_tensors.append(tf.keras.layers.Dense(units=output_dim, activation=Activations.ARU(), name=output_name)(fused))
+                    output_tensors.append(tf.keras.layers.Dense(units=output_dim, activation=Activations.ARU(), name=output_name)(fused[-1]))
 
                 elif output_type == 'classification_probability':
-                    probabilities = tf.keras.layers.Dense(units=output_dim, activation=Activations.ARU())(fused)
+                    probabilities = tf.keras.layers.Dense(units=output_dim, activation=Activations.ARU())(fused[-1])
                     probabilities = probabilities / tf.expand_dims(tf.reduce_sum(probabilities, axis=-1), axis=-1, name=output_name)
                     output_tensors.append(probabilities)
 
                 else:
-                    output_tensors.append(tf.keras.layers.Dense(units=output_dim, activation=None, name=output_name)(fused))
+                    if self.heads == 1:
+                        head_networks[0].append(tf.keras.layers.Dense(units=output_dim, activation=None)(head_networks[head][-1]))
+                        output_tensors.append(head_networks[0][-1])
+                    else:
+                        for head in range(self.heads):
+                            head_networks[head].append(tf.keras.layers.Dense(units=1, activation=None)(head_networks[head][-1]))
+                        output_tensors.append(tf.concat([i[-1] for i in head_networks], axis=-1))
 
             self.model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=output_tensors)
-
+            self.fused_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[fused[-1]])
             if self.mode == 'attention':
                 self.attention_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[ragged_attention_weights])
+                self.aggregation_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[aggregation])

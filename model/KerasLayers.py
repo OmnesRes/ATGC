@@ -1,25 +1,39 @@
 import tensorflow as tf
-import numpy as np
+
+class Norm(tf.keras.constraints.Constraint):
+    def __call__(self, w):
+        return w / (tf.keras.backend.epsilon() + tf.reduce_sum(w))
+
+
+class Dropout(tf.keras.layers.Layer):
+    def __init__(self, dropout):
+        super(Dropout, self).__init__()
+        self.dropout = dropout
+
+    def call(self, inputs, training=None):
+        if not training:
+            return inputs * (1 - self.dropout)
+        else:
+            return inputs
 
 
 class Embed(tf.keras.layers.Layer):
-    def __init__(self, embedding_dimension, trainable=False, triangular=False):
+    def __init__(self, embedding_dimension=None, input_dimension=None, trainable=False, regularization=0):
         super(Embed, self).__init__()
+        self.input_dimension = input_dimension
         self.embedding_dimension = embedding_dimension
         self.trainable = trainable
-        self.triangular = triangular
-        self.embedding_matrix = None
-        self.embedding_matrix_padded = None
+        self.regularization = regularization
 
     def build(self, input_shape):
-        if self.triangular:
-            self.embedding_matrix = self.add_weight(shape=[self.embedding_dimension, self.embedding_dimension], initializer=tf.constant_initializer(value=np.tri(self.embedding_dimension)), trainable=self.trainable, dtype=tf.float32)
+        if self.input_dimension:
+            self.embedding_matrix = self.add_weight(shape=[self.input_dimension, self.embedding_dimension], initializer='uniform', trainable=self.trainable, dtype=tf.float32, regularizer=tf.keras.regularizers.l2(self.regularization))
         else:
             self.embedding_matrix = self.add_weight(shape=[self.embedding_dimension, self.embedding_dimension], initializer=tf.keras.initializers.identity(), trainable=self.trainable, dtype=tf.float32)
-        self.embedding_matrix_padded = tf.concat([tf.zeros([1, self.embedding_dimension]), self.embedding_matrix], axis=0)
 
     def call(self, inputs, **kwargs):
-        return tf.gather(self.embedding_matrix_padded, inputs, axis=0)
+        return tf.gather(tf.concat([tf.zeros([1, self.embedding_dimension]), self.embedding_matrix], axis=0), inputs, axis=0)
+
 
 
 class Activations:
@@ -139,16 +153,17 @@ class Ragged:
             return tf.ragged.map_flat_values(self.activation_layer, ragged_dot)
 
     class Attention(tf.keras.layers.Layer):
-        def __init__(self, pooling='sum', regularization=.2, layers=[16, ]):
+        def __init__(self, pooling='sum', regularization=.2, layers=[16, ], heads=1):
             super(Ragged.Attention, self).__init__()
             self.pooling = pooling
             self._supports_ragged_inputs = True
             self.layers = layers
+            self.heads = heads
             self.regularization = regularization
             self.attention_layers = []
             for i in layers:
                 self.attention_layers.append(tf.keras.layers.Dense(units=i, activation='relu'))
-            self.attention_layers.append(tf.keras.layers.Dense(units=1, activation=Activations.ASU(), activity_regularizer=tf.keras.regularizers.l1(regularization)))
+            self.attention_layers.append(tf.keras.layers.Dense(units=self.heads, activation=Activations.ASU(), activity_regularizer=tf.keras.regularizers.l1(regularization)))
 
         def call(self, inputs, **kwargs):
             if self.pooling == 'dynamic':
@@ -159,7 +174,6 @@ class Ragged:
                 pooled = tf.reduce_sum(tf.ragged.map_flat_values(tf.keras.layers.Lambda(lambda x: x[0] * x[1]),
                                                                  [tf.ragged.map_flat_values(tf.expand_dims, attention_weights, axis=2),
                                                                   tf.ragged.map_flat_values(tf.expand_dims, inputs[0], axis=1)]), axis=1)
-
             else:
                 attention_weights = [inputs]
                 for i in self.attention_layers:
@@ -187,8 +201,25 @@ class Losses:
             super(Losses.CrossEntropy, self).__init__(name=name)
             self.from_logits = from_logits
 
-        def call(self, y_true, y_pred):
-            return tf.keras.losses.CategoricalCrossentropy(reduction='none', from_logits=self.from_logits)(y_true, y_pred)
+        def call(self, y_true, y_pred, loss_clip=0.):
+            return tf.maximum(tf.keras.losses.CategoricalCrossentropy(reduction='none', from_logits=self.from_logits)(y_true, y_pred) - loss_clip, 0.)
+
+        def __call__(self, y_true, y_pred, sample_weight=None):
+            # get sample loss
+            losses = self.call(y_true, y_pred)
+            # return correct true weighted average if provided sample_weight
+            if sample_weight is not None:
+                return tf.reduce_sum(losses * sample_weight[:, 0], axis=0) / tf.reduce_sum(sample_weight)
+            else:
+                return tf.reduce_mean(losses, axis=0)
+
+    class BinaryCrossEntropy(tf.keras.losses.Loss):
+        def __init__(self, name='BE', from_logits=True):
+            super(Losses.BinaryCrossEntropy, self).__init__(name=name)
+            self.from_logits = from_logits
+
+        def call(self, y_true, y_pred, loss_clip=0.):
+            return tf.maximum(tf.keras.losses.BinaryCrossentropy(reduction='none', from_logits=self.from_logits)(y_true, y_pred) - loss_clip, 0.)
 
         def __call__(self, y_true, y_pred, sample_weight=None):
             # get sample loss
@@ -260,8 +291,29 @@ class Metrics:
         def result(self):
             return self.CE
 
-        def reset_states(self):
+        def reset_state(self):
             self.CE.assign(0)
+
+
+    class BinaryCrossEntropy(tf.keras.metrics.Metric):
+        def __init__(self, name='BE', from_logits=True):
+            super(Metrics.BinaryCrossEntropy, self).__init__(name=name)
+            self.from_logits = from_logits
+            self.BE = self.add_weight(name='BE', initializer=tf.keras.initializers.constant(0.))
+
+        def update_state(self, y_true, y_pred, sample_weight=None):
+            losses = tf.keras.losses.BinaryCrossentropy(reduction='none', from_logits=self.from_logits)(y_true, y_pred)
+            if sample_weight is not None:
+                self.BE.assign(tf.reduce_sum(losses * sample_weight[:, 0]) / tf.reduce_sum(sample_weight))
+            else:
+                self.BE.assign(tf.reduce_mean(losses))
+
+        def result(self):
+            return self.BE
+
+        def reset_state(self):
+            self.BE.assign(0)
+
 
     class Accuracy(tf.keras.metrics.Metric):
         def __init__(self, name='accuracy'):
@@ -278,7 +330,7 @@ class Metrics:
         def result(self):
             return self.accuracy
 
-        def reset_states(self):
+        def reset_state(self):
             self.accuracy.assign(0)
 
     class QuantileLoss(tf.keras.metrics.Metric):
@@ -300,6 +352,6 @@ class Metrics:
         def result(self):
             return self.QL
 
-        def reset_states(self):
+        def reset_state(self):
             self.QL.assign(0)
 
