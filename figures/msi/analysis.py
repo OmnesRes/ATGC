@@ -14,10 +14,10 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC':
+if path.stem == 'ATGC2':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
     import sys
     sys.path.append(str(cwd))
 
@@ -107,9 +107,9 @@ for run, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=9, shuffle=
     idx_train_valid = np.concatenate([idx_train, idx_valid], axis=-1)
     train_features = msipred_features.iloc[idx_train_valid, 2:]
     test_features = msipred_features.iloc[idx_test, 2:]
-    new_model = mp.svm_training(training_X=train_features, training_y=list(msipred_features.iloc[idx_train_valid, 1]))
-    predicted_MSI = new_model.predict_proba(test_features)
-    msipred_predictions.append(predicted_MSI)
+    # new_model = mp.svm_training(training_X=train_features, training_y=list(msipred_features.iloc[idx_train_valid, 1]))
+    # predicted_MSI = new_model.predict_proba(test_features)
+    # msipred_predictions.append(predicted_MSI)
 
     latent = np.concatenate(mil.attention_model.predict(ds_test).to_list()).flat
     test_indexes = np.concatenate(np.array([np.where(D['sample_idx'] == i)[0] for i in range(y_label.shape[0])], dtype='object')[idx_test], axis=-1)

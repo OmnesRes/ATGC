@@ -4,10 +4,10 @@ import numpy as np
 import re
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC':
+if path.stem == 'ATGC2':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
     import sys
     sys.path.append(str(cwd))
 
@@ -31,7 +31,7 @@ samples['type'] = samples['bcr_patient_barcode'].apply(lambda x: cancer_labels[x
 tcga_maf = tcga_maf.loc[tcga_maf['Tumor_Sample_Barcode'].isin(samples.Tumor_Sample_Barcode.values)]
 
 ##there's some nans
-tcga_maf.dropna(inplace=True, subset=['Ref'])
+tcga_maf.dropna(inplace=True, subset=['Alt'])
 tcga_maf.reset_index(inplace=True, drop=True)
 
 ##create a new column called index that is the sample idxs
