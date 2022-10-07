@@ -6,6 +6,7 @@ from model import DatasetsUtils
 import pickle
 import pathlib
 import pylab as plt
+from scipy.cluster.hierarchy import dendrogram, linkage
 
 
 path = pathlib.Path.cwd()
@@ -85,7 +86,7 @@ ds_test = tf.data.Dataset.from_tensor_slices(((
                                             tf.gather(y_weights, idx_test)
                                             ))
 
-ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
+ds_test = ds_test.batch(500, drop_remainder=False)
 attention = mil.attention_model.predict(ds_test).numpy()
 cancer_to_code = {cancer: index for index, cancer in enumerate(A.cat.categories)}
 instances = mil.hidden_model.predict(ds_test).numpy()
@@ -114,85 +115,56 @@ def make_colormap(colors):
     return mymap
 
 
-####tumor heatmap
-ramped_average_aggregations = []
-accuracies = []
-cutoffs = []
-for cancer in cancer_to_code:
-    cutoffs.append(np.percentile(np.concatenate([i[:, cancer_to_code[cancer]] for i in attention]), 95))
+##sample heatmap
+mask = samples.iloc[idx_test]['type'] == 'SKCM'
+aggregations = aggregations[:, cancer_to_code['SKCM'], :][mask]
+prediction = prediction_probabilities[mask][:, cancer_to_code['SKCM']]
 
-for cancer in cancer_to_code:
-    mask = samples.iloc[idx_test]['type'] == cancer
-    ramped_weighted_sums = []
-    for sample_instances, sample_attention in zip(instances[mask], attention[mask]):
-        temp = []
-        for head in cancer_to_code:
-            attention_mask = sample_attention[:, cancer_to_code[head]] > cutoffs[cancer_to_code[head]]
-            temp.append(np.sum(sample_instances[attention_mask] * sample_attention[attention_mask, cancer_to_code[head], np.newaxis], axis=0))
-        ramped_weighted_sums.append(np.array(temp))
-    ramped_average_aggregations.append(np.mean(np.array(ramped_weighted_sums), axis=0))
-    accuracies.append(sum(np.argmax(y_label[idx_test][mask], axis=-1) == np.argmax(prediction_probabilities[mask], axis=-1)) / sum(mask))
+matrix = np.array(aggregations)[np.argsort(prediction)[::-1]].T
+z = np.exp(matrix - np.max(matrix, axis=1, keepdims=True))
+probabilities = z / np.sum(z, axis=1, keepdims=True)
+entropies = entropy(probabilities, axis=-1)
+matrix = matrix[entropies < np.percentile(entropies, 20)]
 
-filtered_aggregations = []
-for i in ramped_average_aggregations:
-    z = np.exp(i.T - np.max(i.T, axis=1, keepdims=True))
-    probabilities = z / np.sum(z, axis=1, keepdims=True)
-    entropies = entropy(probabilities, axis=-1)
-    matrix = i.T[entropies < np.percentile(entropies, 5)]
-    filtered_aggregations.append(matrix / matrix.sum(axis=-1, keepdims=True))
+Z = linkage(matrix, 'ward')
+dn = dendrogram(Z, leaf_rotation=90, leaf_font_size=8, color_threshold=1)
+matrix = matrix[list(dn.values())[3]]
 
-vmax = np.percentile(np.concatenate([i.flatten() for i in filtered_aggregations]), 99)
+vmax = np.percentile(matrix, 99)
 myblue = make_colormap({0: '#ffffff',
-                        vmax * .5: '#91a8ee',
+                        vmax * .01: '#e9eefc',
+                        vmax * .5:'#91a8ee',
                         vmax: '#4169E1'})
 
 fig = plt.figure()
-fig.subplots_adjust(hspace=0,
-                    left=.09,
+fig.subplots_adjust(hspace=-.05,
+                    left=.05,
                     right=.99,
-                    bottom=.12,
-                    top=.99)
-gs = fig.add_gridspec(24, 1)
+                    bottom=.04,
+                    top=.94)
+gs = fig.add_gridspec(2, 1, height_ratios=[10, 1])
 ax1 = fig.add_subplot(gs[0, 0])
 ax2 = fig.add_subplot(gs[1, 0])
-ax3 = fig.add_subplot(gs[2, 0])
-ax4 = fig.add_subplot(gs[3, 0])
-ax5 = fig.add_subplot(gs[4, 0])
-ax6 = fig.add_subplot(gs[5, 0])
-ax7 = fig.add_subplot(gs[6, 0])
-ax8 = fig.add_subplot(gs[7, 0])
-ax9 = fig.add_subplot(gs[8, 0])
-ax10 = fig.add_subplot(gs[9, 0])
-ax11 = fig.add_subplot(gs[10, 0])
-ax12 = fig.add_subplot(gs[11, 0])
-ax13 = fig.add_subplot(gs[12, 0])
-ax14 = fig.add_subplot(gs[13, 0])
-ax15 = fig.add_subplot(gs[14, 0])
-ax16 = fig.add_subplot(gs[15, 0])
-ax17 = fig.add_subplot(gs[16, 0])
-ax18 = fig.add_subplot(gs[17, 0])
-ax19 = fig.add_subplot(gs[18, 0])
-ax20 = fig.add_subplot(gs[19, 0])
-ax21 = fig.add_subplot(gs[20, 0])
-ax22 = fig.add_subplot(gs[21, 0])
-ax23 = fig.add_subplot(gs[22, 0])
-ax24 = fig.add_subplot(gs[23, 0])
+figure_matrix = ax1.imshow(matrix,
+                           cmap=myblue,
+                           vmin=0,
+                           vmax=vmax,
+                           aspect='auto',
+                          interpolation='nearest')
 
-for matrix, ax in zip(filtered_aggregations, [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12, ax13, ax14, ax15, ax16, ax17, ax18, ax19, ax20, ax21, ax22, ax23, ax24]):
-    ax.imshow(matrix,
-               cmap=myblue,
-               vmin=0,
-               vmax=vmax,
-               aspect='auto',
-              interpolation='nearest')
+vmax = 1
+myblue = make_colormap({0: '#ffffff', vmax: '#4169E1'})
+prediction_matrix = ax2.imshow(prediction[np.argsort(prediction)[::-1]][np.newaxis, :],
+                           cmap=myblue,
+                           vmin=0,
+                           vmax=vmax,
+                          interpolation='nearest')
 
-for cancer, ax in zip(cancer_to_code, [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12, ax13, ax14, ax15, ax16, ax17, ax18, ax19, ax20, ax21, ax22, ax23, ax24]):
-    ax.tick_params(length=0, width=0, labelsize=8)
-    ax.set_yticks([3.5])
-    ax.set_yticklabels([cancer])
-for ax in [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12, ax13, ax14, ax15, ax16, ax17, ax18, ax19, ax20, ax21, ax22, ax23]:
-    ax.set_xticks([])
-ax24.set_xticks(np.array((range(len(cancer_to_code)))))
-ax24.set_xticklabels(list(cancer_to_code.keys()), rotation=270)
-ax24.set_xlabel('Cancer', fontsize=14)
-ax18.set_title('Attention Head', fontsize=14, rotation=90, position=[-.08,0])
+ax1.set_xticks([])
+ax1.set_yticks([])
+ax2.set_xticks([])
+ax2.set_yticks([])
+ax1.set_ylabel('Features', fontsize=16)
+ax1.set_xlabel('Samples', fontsize=16)
+ax1.xaxis.set_label_position('top')
+ax2.set_xlabel('Model Certainty', fontsize=16)

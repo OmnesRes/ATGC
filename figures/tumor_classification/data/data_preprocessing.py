@@ -5,17 +5,19 @@ import re
 from Bio.Seq import Seq
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC':
+if path.stem == 'ATGC2':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
     import sys
     sys.path.append(str(cwd))
 
-tcga_maf = pickle.load(open(cwd / 'files' / 'tcga_public_maf.pkl', 'rb'))
-samples = pickle.load(open(cwd / 'files' / 'tcga_public_sample_table.pkl', 'rb'))
+tcga_maf = pickle.load(open('/home/janaya2/Desktop/ATGC2/files/tcga_public_maf.pkl', 'rb'))
+samples = pickle.load(open('/home/janaya2/Desktop/ATGC2/files/tcga_public_sample_table.pkl', 'rb'))
+
 ##there's a bad sample with nans
 tcga_maf.dropna(inplace=True, subset=['Reference_Allele', 'Tumor_Seq_Allele2'])
+
 
 samples.reset_index(inplace=True, drop=True)
 tcga_maf.reset_index(inplace=True, drop=True)

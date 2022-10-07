@@ -8,6 +8,8 @@ from model import DatasetsUtils
 import pickle
 import pathlib
 import logomaker as lm
+import pylab as plt
+import matplotlib as mpl
 
 path = pathlib.Path.cwd()
 if path.stem == 'ATGC2':
@@ -107,7 +109,7 @@ ds_test = tf.data.Dataset.from_tensor_slices(((
                                             ),
                                             tf.gather(y_weights, idx_test)
                                             ))
-ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
+ds_test = ds_test.batch(500, drop_remainder=False)
 attention = mil.attention_model.predict(ds_test).numpy()
 cancer_to_code = {cancer: index for index, cancer in enumerate(A.cat.categories)}
 
@@ -116,7 +118,6 @@ refs = tcga_maf['Reference_Allele'].values[np.concatenate([i[0] for i in test_in
 alts = tcga_maf['Tumor_Seq_Allele2'].values[np.concatenate([i[0] for i in test_indexes])]
 five_ps = tcga_maf['five_p'].values[np.concatenate([i[0] for i in test_indexes])]
 three_ps = tcga_maf['three_p'].values[np.concatenate([i[0] for i in test_indexes])]
-
 ref_seqs = []
 alt_seqs = []
 five_p_seqs = []
@@ -139,16 +140,34 @@ for i, j, k, l in zip(refs, alts, five_ps, three_ps):
         three_p_seqs.append(l)
 
 sbs_mask = [(len(i) == 1 and len(j) == 1 and len(re.findall('A|T|C|G', i)) == 1 and len(re.findall('A|T|C|G', j)) == 1) for i, j in zip(ref_seqs, alt_seqs)]
+del_mask = [j == '-' for i, j in zip(ref_seqs, alt_seqs)]
+ins_mask = [i == '-' for i, j in zip(ref_seqs, alt_seqs)]
 
 weighted_sbs_background_ref_matrix = pd.DataFrame(data={'C': np.repeat(0, 1), 'T': np.repeat(0, 1)})
 weighted_sbs_background_alt_matrix = pd.DataFrame(data={'A': np.repeat(0, 1), 'C': np.repeat(0, 1), 'G': np.repeat(0, 1), 'T': np.repeat(0, 1)})
 weighted_sbs_background_five_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)})
 weighted_sbs_background_three_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)})
 
-cancer_ref_matrices = {}
-cancer_alt_matrices = {}
-cancer_five_p_matrices = {}
-cancer_three_p_matrices = {}
+weighted_del_background_ref_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)})
+weighted_del_background_five_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)})
+weighted_del_background_three_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)})
+
+weighted_ins_background_alt_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)})
+weighted_ins_background_five_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)})
+weighted_ins_background_three_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)})
+
+sbs_ref_matrices = {}
+sbs_alt_matrices = {}
+sbs_five_p_matrices = {}
+sbs_three_p_matrices = {}
+
+del_ref_matrices = {}
+del_five_p_matrices = {}
+del_three_p_matrices = {}
+
+ins_alt_matrices = {}
+ins_five_p_matrices = {}
+ins_three_p_matrices = {}
 
 for cancer in cancer_to_code:
     print(cancer)
@@ -179,58 +198,364 @@ for cancer in cancer_to_code:
             cancer_three_p_seqs.append(l)
 
     sbs_cancer_mask = [(len(i) == 1 and len(j) == 1 and len(re.findall('A|T|C|G', i)) == 1 and len(re.findall('A|T|C|G', j)) == 1) for i, j in zip(cancer_ref_seqs, cancer_alt_seqs)]
+    del_cancer_mask = [j == '-' for i, j in zip(cancer_ref_seqs, cancer_alt_seqs)]
+    ins_cancer_mask = [i == '-' for i, j in zip(cancer_ref_seqs, cancer_alt_seqs)]
 
     cancer_attention = np.concatenate([i[:, cancer_to_code[cancer]] for i in attention])
 
-    cutoff = np.percentile(cancer_attention[sbs_mask], 95)
+    sbs_cutoff = np.percentile(cancer_attention[sbs_mask], 95)
+    del_cutoff = np.percentile(cancer_attention[del_mask], 95)
+    ins_cutoff = np.percentile(cancer_attention[ins_mask], 95)
 
-    sbs_cancer_ref_matrix = pd.DataFrame(data={'C': np.repeat(0, 1), 'T': np.repeat(0, 1)}) + lm.alignment_to_matrix([i for i, j, k in zip(ref_seqs, sbs_mask, cancer_attention) if (j and k > cutoff)])
-    sbs_cancer_ref_matrix = lm.transform_matrix(sbs_cancer_ref_matrix, from_type='counts', to_type='probability')
-    cancer_ref_matrices[cancer] = sbs_cancer_ref_matrix
+    sbs_cancer_ref_matrix = pd.DataFrame(data={'C': np.repeat(0, 1), 'T': np.repeat(0, 1)}) + lm.alignment_to_matrix([i for i, j, k in zip(ref_seqs, sbs_mask, cancer_attention) if (j and k > sbs_cutoff)])
+    sbs_cancer_ref_matrix = lm.transform_matrix(sbs_cancer_ref_matrix.fillna(0), from_type='counts', to_type='probability')
+    sbs_ref_matrices[cancer] = sbs_cancer_ref_matrix
+
+    del_cancer_ref_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([(i + '-----')[:6] for i, j, k in zip(ref_seqs, del_mask, cancer_attention) if (j and k > del_cutoff)])
+    del_cancer_ref_matrix = lm.transform_matrix(del_cancer_ref_matrix.fillna(0), from_type='counts', to_type='probability')
+    del_ref_matrices[cancer] = del_cancer_ref_matrix
 
     cancer_sbs_background_ref_matrix = lm.alignment_to_matrix([i for i, j in zip(cancer_ref_seqs, sbs_cancer_mask) if j])
     cancer_sbs_background_ref_matrix = lm.transform_matrix(cancer_sbs_background_ref_matrix, from_type='counts', to_type='probability')
-    weighted_sbs_background_ref_matrix = weighted_sbs_background_ref_matrix + (cancer_sbs_background_ref_matrix * len(samples.iloc[idx_test].loc[samples.iloc[idx_test]['NCIt_label'] == cancer]))
+    weighted_sbs_background_ref_matrix = weighted_sbs_background_ref_matrix + cancer_sbs_background_ref_matrix
 
-    sbs_cancer_alt_matrix = pd.DataFrame(data={'A': np.repeat(0, 1), 'C': np.repeat(0, 1), 'G': np.repeat(0, 1), 'T': np.repeat(0, 1)}) + lm.alignment_to_matrix([i for i, j, k in zip(alt_seqs, sbs_mask, cancer_attention) if (j and k > cutoff)])
-    sbs_cancer_alt_matrix = lm.transform_matrix(sbs_cancer_alt_matrix, from_type='counts', to_type='probability')
-    cancer_alt_matrices[cancer] = sbs_cancer_alt_matrix
+    cancer_del_background_ref_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([(i + '-----')[:6] for i, j in zip(cancer_ref_seqs, del_cancer_mask) if j])
+    cancer_del_background_ref_matrix = lm.transform_matrix(cancer_del_background_ref_matrix.fillna(0), from_type='counts', to_type='probability')
+    weighted_del_background_ref_matrix = weighted_del_background_ref_matrix + cancer_del_background_ref_matrix
+
+    sbs_cancer_alt_matrix = pd.DataFrame(data={'A': np.repeat(0, 1), 'C': np.repeat(0, 1), 'G': np.repeat(0, 1), 'T': np.repeat(0, 1)}) + lm.alignment_to_matrix([i for i, j, k in zip(alt_seqs, sbs_mask, cancer_attention) if (j and k > sbs_cutoff)])
+    sbs_cancer_alt_matrix = lm.transform_matrix(sbs_cancer_alt_matrix.fillna(0), from_type='counts', to_type='probability')
+    sbs_alt_matrices[cancer] = sbs_cancer_alt_matrix
+
+    ins_cancer_alt_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([(i + '-----')[:6] for i, j, k in zip(alt_seqs, ins_mask, cancer_attention) if (j and k > ins_cutoff)])
+    ins_cancer_alt_matrix = lm.transform_matrix(ins_cancer_alt_matrix.fillna(0), from_type='counts', to_type='probability')
+    ins_alt_matrices[cancer] = ins_cancer_alt_matrix
 
     cancer_sbs_background_alt_matrix = lm.alignment_to_matrix([i for i, j in zip(cancer_alt_seqs, sbs_cancer_mask) if j])
     cancer_sbs_background_alt_matrix = lm.transform_matrix(cancer_sbs_background_alt_matrix, from_type='counts', to_type='probability')
-    weighted_sbs_background_alt_matrix = weighted_sbs_background_alt_matrix + (cancer_sbs_background_alt_matrix * len(samples.iloc[idx_test].loc[samples.iloc[idx_test]['NCIt_label'] == cancer]))
+    weighted_sbs_background_alt_matrix = weighted_sbs_background_alt_matrix + cancer_sbs_background_alt_matrix
 
-    sbs_cancer_five_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([i for i, j, k in zip(five_p_seqs, sbs_mask, cancer_attention) if (j and k > cutoff)])
-    sbs_cancer_five_p_matrix = lm.transform_matrix(sbs_cancer_five_p_matrix, from_type='counts', to_type='probability')
-    cancer_five_p_matrices[cancer] = sbs_cancer_five_p_matrix
+    cancer_ins_background_alt_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([(i + '-----')[:6] for i, j in zip(cancer_alt_seqs, ins_cancer_mask) if j])
+    cancer_ins_background_alt_matrix = lm.transform_matrix(cancer_ins_background_alt_matrix.fillna(0), from_type='counts', to_type='probability')
+    weighted_ins_background_alt_matrix = weighted_ins_background_alt_matrix + cancer_ins_background_alt_matrix
+
+    sbs_cancer_five_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([i for i, j, k in zip(five_p_seqs, sbs_mask, cancer_attention) if (j and k > sbs_cutoff)])
+    sbs_cancer_five_p_matrix = lm.transform_matrix(sbs_cancer_five_p_matrix.fillna(0), from_type='counts', to_type='probability')
+    sbs_five_p_matrices[cancer] = sbs_cancer_five_p_matrix
+
+    del_cancer_five_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([i for i, j, k in zip(five_p_seqs, del_mask, cancer_attention) if (j and k > del_cutoff)])
+    del_cancer_five_p_matrix = lm.transform_matrix(del_cancer_five_p_matrix.fillna(0), from_type='counts', to_type='probability')
+    del_five_p_matrices[cancer] = del_cancer_five_p_matrix
+
+    ins_cancer_five_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([i for i, j, k in zip(five_p_seqs, ins_mask, cancer_attention) if (j and k > ins_cutoff)])
+    ins_cancer_five_p_matrix = lm.transform_matrix(ins_cancer_five_p_matrix.fillna(0), from_type='counts', to_type='probability')
+    ins_five_p_matrices[cancer] = ins_cancer_five_p_matrix
 
     cancer_sbs_background_five_p_matrix = lm.alignment_to_matrix([i for i, j in zip(cancer_five_p_seqs, sbs_cancer_mask) if j])
     cancer_sbs_background_five_p_matrix = lm.transform_matrix(cancer_sbs_background_five_p_matrix, from_type='counts', to_type='probability')
-    weighted_sbs_background_five_p_matrix = weighted_sbs_background_five_p_matrix + (cancer_sbs_background_five_p_matrix * len(samples.iloc[idx_test].loc[samples.iloc[idx_test]['NCIt_label'] == cancer]))
+    weighted_sbs_background_five_p_matrix = weighted_sbs_background_five_p_matrix + cancer_sbs_background_five_p_matrix
 
-    sbs_cancer_three_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([i for i, j, k in zip(three_p_seqs, sbs_mask, cancer_attention) if (j and k > cutoff)])
-    sbs_cancer_three_p_matrix = lm.transform_matrix(sbs_cancer_three_p_matrix, from_type='counts', to_type='probability')
-    cancer_three_p_matrices[cancer] = sbs_cancer_three_p_matrix
+    cancer_del_background_five_p_matrix = lm.alignment_to_matrix([i for i, j in zip(cancer_five_p_seqs, del_cancer_mask) if j])
+    cancer_del_background_five_p_matrix = lm.transform_matrix(cancer_del_background_five_p_matrix, from_type='counts', to_type='probability')
+    weighted_del_background_five_p_matrix = weighted_del_background_five_p_matrix + cancer_del_background_five_p_matrix
+
+    cancer_ins_background_five_p_matrix = lm.alignment_to_matrix([i for i, j in zip(cancer_five_p_seqs, ins_cancer_mask) if j])
+    cancer_ins_background_five_p_matrix = lm.transform_matrix(cancer_ins_background_five_p_matrix, from_type='counts', to_type='probability')
+    weighted_ins_background_five_p_matrix = weighted_ins_background_five_p_matrix + cancer_ins_background_five_p_matrix
+
+    sbs_cancer_three_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([i for i, j, k in zip(three_p_seqs, sbs_mask, cancer_attention) if (j and k > sbs_cutoff)])
+    sbs_cancer_three_p_matrix = lm.transform_matrix(sbs_cancer_three_p_matrix.fillna(0), from_type='counts', to_type='probability')
+    sbs_three_p_matrices[cancer] = sbs_cancer_three_p_matrix
+
+    del_cancer_three_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([i for i, j, k in zip(three_p_seqs, del_mask, cancer_attention) if (j and k > del_cutoff)])
+    del_cancer_three_p_matrix = lm.transform_matrix(del_cancer_three_p_matrix.fillna(0), from_type='counts', to_type='probability')
+    del_three_p_matrices[cancer] = del_cancer_three_p_matrix
+
+    ins_cancer_three_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([i for i, j, k in zip(three_p_seqs, ins_mask, cancer_attention) if (j and k > ins_cutoff)])
+    ins_cancer_three_p_matrix = lm.transform_matrix(ins_cancer_three_p_matrix.fillna(0), from_type='counts', to_type='probability')
+    ins_three_p_matrices[cancer] = ins_cancer_three_p_matrix
 
     cancer_sbs_background_three_p_matrix = lm.alignment_to_matrix([i for i, j in zip(cancer_three_p_seqs, sbs_cancer_mask) if j])
     cancer_sbs_background_three_p_matrix = lm.transform_matrix(cancer_sbs_background_three_p_matrix, from_type='counts', to_type='probability')
-    weighted_sbs_background_three_p_matrix = weighted_sbs_background_three_p_matrix + (cancer_sbs_background_three_p_matrix * len(samples.iloc[idx_test].loc[samples.iloc[idx_test]['NCIt_label'] == cancer]))
+    weighted_sbs_background_three_p_matrix = weighted_sbs_background_three_p_matrix + cancer_sbs_background_three_p_matrix
 
-weighted_sbs_background_ref_matrix = weighted_sbs_background_ref_matrix / len(idx_test)
-weighted_sbs_background_alt_matrix = weighted_sbs_background_alt_matrix / len(idx_test)
-weighted_sbs_background_five_p_matrix = weighted_sbs_background_five_p_matrix / len(idx_test)
-weighted_sbs_background_three_p_matrix = weighted_sbs_background_three_p_matrix / len(idx_test)
+    cancer_del_background_three_p_matrix = lm.alignment_to_matrix([i for i, j in zip(cancer_three_p_seqs, del_cancer_mask) if j])
+    cancer_del_background_three_p_matrix = lm.transform_matrix(cancer_del_background_three_p_matrix, from_type='counts', to_type='probability')
+    weighted_del_background_three_p_matrix = weighted_del_background_three_p_matrix + cancer_del_background_three_p_matrix
 
-cancer = 'Thyroid Gland Papillary Carcinoma'
-lm.Logo(lm.transform_matrix(cancer_five_p_matrices[cancer], from_type='probability', to_type='information', background=weighted_sbs_background_five_p_matrix))
-lm.Logo(lm.transform_matrix(cancer_ref_matrices[cancer], from_type='probability', to_type='information', background=weighted_sbs_background_ref_matrix))
-lm.Logo(lm.transform_matrix(cancer_alt_matrices[cancer], from_type='probability', to_type='information', background=weighted_sbs_background_alt_matrix))
-lm.Logo(lm.transform_matrix(cancer_three_p_matrices[cancer], from_type='probability', to_type='information', background=weighted_sbs_background_three_p_matrix))
+    cancer_ins_background_three_p_matrix = lm.alignment_to_matrix([i for i, j in zip(cancer_three_p_seqs, ins_cancer_mask) if j])
+    cancer_ins_background_three_p_matrix = lm.transform_matrix(cancer_ins_background_three_p_matrix, from_type='counts', to_type='probability')
+    weighted_ins_background_three_p_matrix = weighted_ins_background_three_p_matrix + cancer_ins_background_three_p_matrix
 
-# import pylab as plt
-# for index, cancer in enumerate(list(cancer_to_code.keys())[10:]):
-#     fig = plt.figure()
-#     cancer_attention = np.concatenate([i[:, index] for i in attention])
-#     plt.hist(cancer_attention, bins=100)
-#     plt.title(cancer)
-#     plt.show()
+weighted_sbs_background_ref_matrix = weighted_sbs_background_ref_matrix / len(cancer_to_code)
+weighted_sbs_background_alt_matrix = weighted_sbs_background_alt_matrix / len(cancer_to_code)
+weighted_sbs_background_five_p_matrix = weighted_sbs_background_five_p_matrix / len(cancer_to_code)
+weighted_sbs_background_three_p_matrix = weighted_sbs_background_three_p_matrix / len(cancer_to_code)
+
+weighted_del_background_ref_matrix = weighted_del_background_ref_matrix / len(cancer_to_code)
+weighted_del_background_five_p_matrix = weighted_del_background_five_p_matrix / len(cancer_to_code)
+weighted_del_background_three_p_matrix = weighted_del_background_three_p_matrix / len(cancer_to_code)
+
+weighted_ins_background_alt_matrix = weighted_ins_background_alt_matrix / len(cancer_to_code)
+weighted_ins_background_five_p_matrix = weighted_ins_background_five_p_matrix / len(cancer_to_code)
+weighted_ins_background_three_p_matrix = weighted_ins_background_three_p_matrix / len(cancer_to_code)
+
+five_p_sbs_information = []
+three_p_sbs_information = []
+ref_sbs_information = []
+alt_sbs_information = []
+
+five_p_del_information = []
+three_p_del_information = []
+ref_del_information = []
+
+five_p_ins_information = []
+three_p_ins_information = []
+alt_ins_information = []
+
+for cancer in cancer_to_code:
+    five_p_sbs_information.append(np.sum(lm.transform_matrix(sbs_five_p_matrices[cancer], from_type='probability', to_type='information', background=weighted_sbs_background_five_p_matrix).values, axis=-1))
+    ref_sbs_information.append(np.sum(lm.transform_matrix(sbs_ref_matrices[cancer], from_type='probability', to_type='information', background=weighted_sbs_background_ref_matrix).values, axis=-1))
+    alt_sbs_information.append(np.sum(lm.transform_matrix(sbs_alt_matrices[cancer], from_type='probability', to_type='information', background=weighted_sbs_background_alt_matrix).values, axis=-1))
+    three_p_sbs_information.append(np.sum(lm.transform_matrix(sbs_three_p_matrices[cancer], from_type='probability', to_type='information', background=weighted_sbs_background_three_p_matrix).values, axis=-1))
+
+    five_p_del_information.append(np.sum(lm.transform_matrix(del_five_p_matrices[cancer], from_type='probability', to_type='information', background=weighted_del_background_five_p_matrix).values, axis=-1))
+    ref_del_information.append(np.sum(lm.transform_matrix(del_ref_matrices[cancer], from_type='probability', to_type='information', background=weighted_del_background_ref_matrix).values, axis=-1))
+    three_p_del_information.append(np.sum(lm.transform_matrix(del_three_p_matrices[cancer], from_type='probability', to_type='information', background=weighted_del_background_three_p_matrix).values, axis=-1))
+
+    five_p_ins_information.append(np.sum(lm.transform_matrix(ins_five_p_matrices[cancer], from_type='probability', to_type='information', background=weighted_ins_background_five_p_matrix).values, axis=-1))
+    alt_ins_information.append(np.sum(lm.transform_matrix(ins_alt_matrices[cancer], from_type='probability', to_type='information', background=weighted_ins_background_alt_matrix).values, axis=-1))
+    three_p_ins_information.append(np.sum(lm.transform_matrix(ins_three_p_matrices[cancer], from_type='probability', to_type='information', background=weighted_ins_background_three_p_matrix).values, axis=-1))
+
+
+
+def make_colormap(colors):
+    z = np.sort(list(colors.keys()))
+    anchors = (z - min(z)) / (max(z) - min(z))
+    CC = mpl.colors.ColorConverter()
+    R, G, B = [], [], []
+    for i in range(len(z)):
+        Ci = colors[z[i]]
+        RGB = CC.to_rgb(Ci)
+        R.append(RGB[0])
+        G.append(RGB[1])
+        B.append(RGB[2])
+    cmap_dict = {}
+    cmap_dict['red'] = [(anchors[i], R[i], R[i]) for i in range(len(R))]
+    cmap_dict['green'] = [(anchors[i], G[i], G[i]) for i in range(len(G))]
+    cmap_dict['blue'] = [(anchors[i], B[i], B[i]) for i in range(len(B))]
+    mymap = mpl.colors.LinearSegmentedColormap('mymap', cmap_dict)
+    return mymap
+
+
+abbreviations = {'Muscle-Invasive Bladder Carcinoma': 'MIBC',
+                 'Infiltrating Ductal Breast Carcinoma': 'IDBC',
+                 'Invasive Lobular Breast Carcinoma': 'ILBC',
+                'Cervical Squamous Cell Carcinoma': 'CSCC',
+                 'Colorectal Adenocarcinoma': 'COAD',
+                'Glioblastoma': 'GBM',
+                 'Head and Neck Squamous Cell Carcinoma': 'HNSC',
+                 'Clear Cell Renal Cell Carcinoma': 'KIRC',
+                 'Papillary Renal Cell Carcinoma': 'KIRP',
+                 'Astrocytoma': 'AC',
+                 'Oligoastrocytoma': 'OAC',
+                 'Oligodendroglioma': 'ODG',
+                 'Hepatocellular Carcinoma': 'LIHC',
+                 'Lung Adenocarcinoma': 'LUAD',
+                 'Lung Squamous Cell Carcinoma': 'LUSC',
+                 'Ovarian Serous Adenocarcinoma': 'OV',
+                 'Adenocarcinoma, Pancreas': 'PAAD',
+                 'PCPG': 'PCPG',
+                 'Prostate Acinar Adenocarcinoma': 'PRAD',
+                 'SARC': 'SARC',
+                 'Cutaneous Melanoma': 'SKCM',
+                 'Gastric Adenocarcinoma': 'STAD',
+                 'TGCT': 'TGCT',
+                 'Thyroid Gland Follicular Carcinoma': 'TGFC',
+                 'Thyroid Gland Papillary Carcinoma': 'TGPC',
+                 'Endometrial Endometrioid Adenocarcinoma': 'EEA',
+                 'Endometrial Serous Adenocarcinoma': 'ESA'}
+
+##sbs
+vmax = np.max([np.max(np.max(five_p_sbs_information, axis=-1)), np.max(np.max(three_p_sbs_information, axis=-1)), np.max(np.max(ref_sbs_information, axis=-1)), np.max(np.max(alt_sbs_information, axis=-1))])
+myblue = make_colormap({0: '#ffffff', vmax * .5: '#91a8ee', vmax: '#4169E1'})
+
+fig = plt.figure()
+fig.subplots_adjust(left=.056,
+                    bottom=.06,
+                    right=.95,
+                    top=.94,
+                    wspace=.1)
+gs = fig.add_gridspec(1, 5, width_ratios=[6, 1, 1, 6, .5])
+ax1 = fig.add_subplot(gs[0, 0])
+ax2 = fig.add_subplot(gs[0, 1])
+ax3 = fig.add_subplot(gs[0, 2])
+ax4 = fig.add_subplot(gs[0, 3])
+ax5 = fig.add_subplot(gs[0, 4])
+
+ax1.imshow(np.array(five_p_sbs_information)[np.argsort([abbreviations[i] for i in cancer_to_code])],
+                           cmap=myblue,
+                           vmin=0,
+                           vmax=vmax,
+                           aspect='auto',
+                          interpolation='nearest')
+
+ax2.imshow(np.array(ref_sbs_information)[np.argsort([abbreviations[i] for i in cancer_to_code])],
+                           cmap=myblue,
+                           vmin=0,
+                           vmax=vmax,
+                           aspect='auto',
+                          interpolation='nearest')
+
+ax3.imshow(np.array(alt_sbs_information)[np.argsort([abbreviations[i] for i in cancer_to_code])],
+                           cmap=myblue,
+                           vmin=0,
+                           vmax=vmax,
+                           aspect='auto',
+                          interpolation='nearest')
+
+ax4.imshow(np.array(three_p_sbs_information)[np.argsort([abbreviations[i] for i in cancer_to_code])],
+                           cmap=myblue,
+                           vmin=0,
+                           vmax=vmax,
+                           aspect='auto',
+                          interpolation='nearest')
+
+for ax in [ax1, ax2, ax3, ax4]:
+    ax.xaxis.set_label_position('top')
+ax1.set_xticks(list(range(6)))
+ax1.set_xticklabels([-6, -5, -4, -3, -2, -1])
+ax4.set_xticks(list(range(6)))
+ax4.set_xticklabels(['+1', '+2', '+3', '+4', '+5', '+6'])
+ax1.set_yticks(list(range(len(cancer_to_code))))
+ax1.tick_params(axis='y', length=0, width=0, labelsize=8)
+ax1.set_xlabel("Five prime", fontsize=12)
+ax2.set_xlabel("Ref", fontsize=12)
+ax3.set_xlabel("Alt", fontsize=12)
+ax4.set_xlabel("Three prime", fontsize=12)
+ax1.set_yticklabels(np.array([abbreviations[i] for i in cancer_to_code])[np.argsort([abbreviations[i] for i in cancer_to_code])])
+ax2.set_xticks([])
+ax3.set_xticks([])
+for ax in [ax2, ax3, ax4]:
+    ax.set_yticks([])
+mpl.colorbar.ColorbarBase(ax5, cmap=myblue, orientation='vertical')
+ax5.set_yticks([0, .5, 1])
+ax5.set_yticklabels([0, round(vmax * .5, 1), round(vmax, 1)])
+ax5.set_title("Bits")
+
+##dels
+vmax = np.max([np.max(np.max(five_p_del_information, axis=-1)), np.max(np.max(three_p_del_information, axis=-1)), np.max(np.max(ref_del_information, axis=-1))])
+myblue = make_colormap({0: '#ffffff', vmax * .5: '#91a8ee', vmax: '#4169E1'})
+
+fig = plt.figure()
+fig.subplots_adjust(left=.056,
+                    bottom=.06,
+                    right=.95,
+                    top=.94,
+                    wspace=.1)
+gs = fig.add_gridspec(1, 4, width_ratios=[6, 6, 6, .5])
+ax1 = fig.add_subplot(gs[0, 0])
+ax2 = fig.add_subplot(gs[0, 1])
+ax3 = fig.add_subplot(gs[0, 2])
+ax4 = fig.add_subplot(gs[0, 3])
+
+ax1.imshow(np.array(five_p_del_information)[np.argsort([abbreviations[i] for i in cancer_to_code])],
+                           cmap=myblue,
+                           vmin=0,
+                           vmax=vmax,
+                           aspect='auto',
+                          interpolation='nearest')
+
+ax2.imshow(np.array(ref_del_information)[np.argsort([abbreviations[i] for i in cancer_to_code])],
+                           cmap=myblue,
+                           vmin=0,
+                           vmax=vmax,
+                           aspect='auto',
+                          interpolation='nearest')
+
+
+ax3.imshow(np.array(three_p_del_information)[np.argsort([abbreviations[i] for i in cancer_to_code])],
+                           cmap=myblue,
+                           vmin=0,
+                           vmax=vmax,
+                           aspect='auto',
+                          interpolation='nearest')
+
+for ax in [ax1, ax2, ax3]:
+    ax.xaxis.set_label_position('top')
+ax1.set_xticks(list(range(6)))
+ax1.set_xticklabels([-6, -5, -4, -3, -2, -1])
+ax3.set_xticks(list(range(6)))
+ax3.set_xticklabels(['+1', '+2', '+3', '+4', '+5', '+6'])
+ax1.set_yticks(list(range(len(cancer_to_code))))
+ax1.tick_params(axis='y', length=0, width=0, labelsize=8)
+ax1.set_xlabel("Five prime", fontsize=12)
+ax2.set_xlabel("Ref", fontsize=12)
+ax3.set_xlabel("Three prime", fontsize=12)
+ax1.set_yticklabels(np.array([abbreviations[i] for i in cancer_to_code])[np.argsort([abbreviations[i] for i in cancer_to_code])])
+ax2.set_xticks([])
+for ax in [ax2, ax3]:
+    ax.set_yticks([])
+mpl.colorbar.ColorbarBase(ax4, cmap=myblue, orientation='vertical')
+ax4.set_yticks([0, .5, 1])
+ax4.set_yticklabels([0, round(vmax * .5, 1), round(vmax, 1)])
+ax4.set_title("Bits")
+
+
+##ins
+vmax = np.max([np.max(np.max(five_p_ins_information, axis=-1)), np.max(np.max(three_p_ins_information, axis=-1)), np.max(np.max(alt_ins_information, axis=-1))])
+myblue = make_colormap({0: '#ffffff', vmax * .5: '#91a8ee', vmax: '#4169E1'})
+
+fig = plt.figure()
+fig.subplots_adjust(left=.056,
+                    bottom=.06,
+                    right=.95,
+                    top=.94,
+                    wspace=.1)
+gs = fig.add_gridspec(1, 4, width_ratios=[6, 6, 6, .5])
+ax1 = fig.add_subplot(gs[0, 0])
+ax2 = fig.add_subplot(gs[0, 1])
+ax3 = fig.add_subplot(gs[0, 2])
+ax4 = fig.add_subplot(gs[0, 3])
+
+ax1.imshow(np.array(five_p_ins_information)[np.argsort([abbreviations[i] for i in cancer_to_code])],
+                           cmap=myblue,
+                           vmin=0,
+                           vmax=vmax,
+                           aspect='auto',
+                          interpolation='nearest')
+
+ax2.imshow(np.array(alt_ins_information)[np.argsort([abbreviations[i] for i in cancer_to_code])],
+                           cmap=myblue,
+                           vmin=0,
+                           vmax=vmax,
+                           aspect='auto',
+                          interpolation='nearest')
+
+
+ax3.imshow(np.array(three_p_ins_information)[np.argsort([abbreviations[i] for i in cancer_to_code])],
+                           cmap=myblue,
+                           vmin=0,
+                           vmax=vmax,
+                           aspect='auto',
+                          interpolation='nearest')
+
+for ax in [ax1, ax2, ax3]:
+    ax.xaxis.set_label_position('top')
+ax1.set_xticks(list(range(6)))
+ax1.set_xticklabels([-6, -5, -4, -3, -2, -1])
+ax3.set_xticks(list(range(6)))
+ax3.set_xticklabels(['+1', '+2', '+3', '+4', '+5', '+6'])
+ax1.set_yticks(list(range(len(cancer_to_code))))
+ax1.tick_params(axis='y', length=0, width=0, labelsize=8)
+ax1.set_xlabel("Five prime", fontsize=12)
+ax2.set_xlabel("Alt", fontsize=12)
+ax3.set_xlabel("Three prime", fontsize=12)
+ax1.set_yticklabels(np.array([abbreviations[i] for i in cancer_to_code])[np.argsort([abbreviations[i] for i in cancer_to_code])])
+ax2.set_xticks([])
+for ax in [ax2, ax3]:
+    ax.set_yticks([])
+mpl.colorbar.ColorbarBase(ax4, cmap=myblue, orientation='vertical')
+ax4.set_yticks([0, .5, 1])
+ax4.set_yticklabels([0, round(vmax * .5, 1), round(vmax, 1)])
+ax4.set_title("Bits")
