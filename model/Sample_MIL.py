@@ -1,5 +1,5 @@
 import tensorflow as tf
-from model.KerasLayers import Activations, Ragged, Embed, StrandWeight, Dropout, Norm
+from model.KerasLayers import Activations, Ragged, Embed, StrandWeight, Dropout
 
 class InstanceModels:
 
@@ -171,18 +171,13 @@ class InstanceModels:
 
             self.model = tf.keras.Model(inputs=[ref_input, alt_input], outputs=[fused[-1]])
 
-
-
 class RaggedModels:
     class MIL:
         def __init__(self,
                      instance_encoders=[],
                      sample_encoders=[],
                      instance_layers=[],
-                     sample_layers=[],
-                     pooled_layers=[],
                      output_dims=[1],
-                     output_types=['classification'],
                      output_names=[],
                      mode='attention',
                      pooling='sum',
@@ -198,10 +193,7 @@ class RaggedModels:
             self.instance_encoders,\
             self.sample_encoders,\
             self.instance_layers,\
-            self.sample_layers,\
-            self.pooled_layers,\
             self.output_dims,\
-            self.output_types,\
             self.output_names,\
             self.mode,\
             self.pooling,\
@@ -216,10 +208,7 @@ class RaggedModels:
             self.heads = instance_encoders,\
                          sample_encoders,\
                          instance_layers,\
-                         sample_layers,\
-                         pooled_layers,\
                          output_dims,\
-                         output_types,\
                          output_names,\
                          mode,\
                          pooling,\
@@ -234,10 +223,9 @@ class RaggedModels:
                          heads
 
             if self.output_names == []:
-                self.output_names = ['output_' + str(index) for index, i in enumerate(self.output_types)]
+                self.output_names = ['output_' + str(index) for index, i in enumerate(self.output_dims)]
             self.model, self.attention_model = None, None
             self.build()
-
 
         def build(self):
             ragged_inputs = [[tf.keras.layers.Input(shape=input_tensor.shape, dtype=input_tensor.dtype, ragged=True) for input_tensor in encoder.inputs] for encoder in self.instance_encoders]
@@ -273,10 +261,7 @@ class RaggedModels:
                         ragged_hidden.append(Ragged.MapFlatValues(tf.keras.layers.Dropout(self.dropout))(ragged_hidden[-1]))
 
                 if self.mode == 'attention':
-                    if self.pooling == 'both':
-                        pooling, ragged_attention_weights = Ragged.Attention(pooling='mean', regularization=self.regularization, layers=self.attention_layers)(ragged_hidden[-1])
-                        pooled_hidden = [tf.concat([pooling[:, 0, :], tf.keras.layers.Lambda(lambda x: tf.reduce_sum(x, axis=1))(ragged_attention_weights)], axis=-1)]
-                    elif self.pooling == 'dynamic':
+                    if self.pooling == 'dynamic':
                         pooling_1, ragged_attention_weights_1 = Ragged.Attention(pooling='mean', regularization=self.regularization, layers=self.attention_layers)(ragged_hidden[-1])
                         for index, i in enumerate(self.dynamic_hidden):
                             if index == 0:
@@ -284,7 +269,7 @@ class RaggedModels:
                             else:
                                 instance_ragged_fused.append(Ragged.MapFlatValues(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu))(instance_ragged_fused[-1]))
                         pooling_2, ragged_attention_weights = Ragged.Attention(pooling='dynamic', regularization=self.regularization, layers=self.attention_layers)([ragged_hidden[-1], instance_ragged_fused[-1]])
-                        pooled_hidden = [pooling_2[:, 0, :]]
+                        pooled_hidden = [pooling_2]
                     else:
                         pooling, ragged_attention_weights = Ragged.Attention(pooling=self.pooling, regularization=self.regularization, layers=self.attention_layers, heads=self.heads)(ragged_hidden[-1])
                         pooled_hidden = [pooling]
@@ -304,13 +289,11 @@ class RaggedModels:
 
                 aggregation = pooled_hidden[-1]
 
-                # for i in self.pooled_layers:
-                #     pooled_hidden.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(pooled_hidden[-1]))
-
             if self.sample_encoders != []:
                 if self.fusion == 'after':
                     if self.instance_encoders != []:
-                        fused = [tf.concat([pooled_hidden[-1], sample_fused], axis=-1)]
+                        ##need to broadcast
+                        fused = [tf.concat([pooled_hidden[-1], tf.broadcast_to(sample_fused[:, tf.newaxis, :], [tf.shape(sample_fused)[0], self.heads, sample_fused.shape[-1]])], axis=-1)]
                     else:
                         fused = [sample_fused]
                 else:
@@ -318,9 +301,6 @@ class RaggedModels:
 
             else:
                 fused = [pooled_hidden[-1]]
-
-            for i in self.sample_layers:
-                fused.append(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu)(fused[-1]))
 
             if self.mode == 'none': #assumes you need a newaxis
                 fused = [fused[-1][:, tf.newaxis, :]]
@@ -335,31 +315,23 @@ class RaggedModels:
                         head_networks[head].append(tf.keras.layers.Dropout(self.dropout)(head_networks[head][-1]))
 
             output_tensors = []
-            for output_type, output_dim, output_name in zip(self.output_types, self.output_dims, self.output_names):
-                if output_type == 'regression':
-                    ##assumes log transformed output
-                    pred = tf.keras.layers.Dense(units=output_dim, activation='softplus', name=output_name)(fused[-1])
-                    output_tensors.append(tf.math.log(pred + 1))
-
-                elif output_type == 'anlulogits':
-                    output_tensors.append(tf.keras.layers.Dense(units=output_dim, activation=Activations.ARU(), name=output_name)(fused[-1]))
-
-                elif output_type == 'classification_probability':
-                    probabilities = tf.keras.layers.Dense(units=output_dim, activation=Activations.ARU())(fused[-1])
-                    probabilities = probabilities / tf.expand_dims(tf.reduce_sum(probabilities, axis=-1), axis=-1, name=output_name)
-                    output_tensors.append(probabilities)
-
+            for output_dim, output_name in zip(self.output_dims, self.output_names):
+                if self.heads == 1:
+                    head_networks[0].append(tf.keras.layers.Dense(units=output_dim, activation=None)(head_networks[0][-1]))
+                    output_tensors.append(head_networks[0][-1])
                 else:
-                    if self.heads == 1:
-                        head_networks[0].append(tf.keras.layers.Dense(units=output_dim, activation=None)(head_networks[head][-1]))
-                        output_tensors.append(head_networks[0][-1])
-                    else:
-                        for head in range(self.heads):
-                            head_networks[head].append(tf.keras.layers.Dense(units=1, activation=None)(head_networks[head][-1]))
+                    for head in range(self.heads):
+                        head_networks[head].append(tf.keras.layers.Dense(units=1, activation=None)(head_networks[head][-1]))
+                    if self.heads == output_dim:
                         output_tensors.append(tf.concat([i[-1] for i in head_networks], axis=-1))
+                    else:
+                        output_tensors.append(tf.keras.layers.Dense(units=output_dim, activation=None)(tf.concat([i[-1] for i in head_networks], axis=-1)))
 
             self.model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=output_tensors)
             self.fused_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[fused[-1]])
+            if self.instance_encoders != []:
+                self.hidden_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[ragged_hidden[-1]])
             if self.mode == 'attention':
                 self.attention_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[ragged_attention_weights])
                 self.aggregation_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[aggregation])
+

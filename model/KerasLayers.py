@@ -27,7 +27,7 @@ class Embed(tf.keras.layers.Layer):
 
     def build(self, input_shape):
         if self.input_dimension:
-            self.embedding_matrix = self.add_weight(shape=[self.input_dimension, self.embedding_dimension], initializer='uniform', trainable=self.trainable, dtype=tf.float32, regularizer=tf.keras.regularizers.l2(self.regularization))
+            self.embedding_matrix = self.add_weight(shape=[self.input_dimension, self.embedding_dimension], initializer='uniform', trainable=self.trainable, dtype=tf.float32, regularizer=tf.keras.regularizers.l1(self.regularization))
         else:
             self.embedding_matrix = self.add_weight(shape=[self.embedding_dimension, self.embedding_dimension], initializer=tf.keras.initializers.identity(), trainable=self.trainable, dtype=tf.float32)
 
@@ -35,9 +35,7 @@ class Embed(tf.keras.layers.Layer):
         return tf.gather(tf.concat([tf.zeros([1, self.embedding_dimension]), self.embedding_matrix], axis=0), inputs, axis=0)
 
 
-
 class Activations:
-
     class ASU(tf.keras.layers.Layer):
         def __init__(self, trainable=True, lower_asymptote=0., upper_asymptote=1., alpha_init=1., bias_init=None):
             super(Activations.ASU, self).__init__()
@@ -95,7 +93,6 @@ class Activations:
             return self.activation_function(inputs + self.bias if self.bias is not None else inputs, alpha=tf.exp(self.alpha))
 
 
-
 class StrandWeight(tf.keras.layers.Layer):
     def __init__(self, n_features, trainable=True, strand_init=0.):
         super(StrandWeight, self).__init__()
@@ -112,7 +109,6 @@ class StrandWeight(tf.keras.layers.Layer):
 
 
 class Dense:
-
     class Gate(tf.keras.layers.Layer):
         def __init__(self, units, activation, bias_kwargs):
             super(Dense.Gate, self).__init__()
@@ -126,7 +122,6 @@ class Dense:
 
 
 class Ragged:
-
     class MapFlatValues(tf.keras.layers.Layer):
         def __init__(self, op):
             super(Ragged.MapFlatValues, self).__init__()
@@ -192,10 +187,7 @@ class Ragged:
             return pooled, attention_weights
 
 
-
-
 class Losses:
-
     class CrossEntropy(tf.keras.losses.Loss):
         def __init__(self, name='CE', from_logits=True):
             super(Losses.CrossEntropy, self).__init__(name=name)
@@ -294,7 +286,6 @@ class Metrics:
         def reset_state(self):
             self.CE.assign(0)
 
-
     class BinaryCrossEntropy(tf.keras.metrics.Metric):
         def __init__(self, name='BE', from_logits=True):
             super(Metrics.BinaryCrossEntropy, self).__init__(name=name)
@@ -313,7 +304,6 @@ class Metrics:
 
         def reset_state(self):
             self.BE.assign(0)
-
 
     class Accuracy(tf.keras.metrics.Metric):
         def __init__(self, name='accuracy'):
