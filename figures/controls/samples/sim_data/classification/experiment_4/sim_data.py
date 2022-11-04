@@ -7,7 +7,6 @@ if path.stem == 'ATGC':
 else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
 
-
 ##random witness rate
 def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250, 300],
                     control=True, positive_choices=None, fixed=['five_p']):
@@ -30,6 +29,7 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
 
     control_variants = [generate_variant() for i in range(control_count)]
     while True:
+        ##this could be more efficient, replace offending variant with a checked variant
         y = False
         for i in control_variants:
             if check_variant(i, positive_choices, to_check=fixed):
@@ -105,13 +105,11 @@ def get_context(five_p, three_p, ref, alt):
 
 instances['context'] = [get_context(i, j, k, l) for i,j,k,l in zip(instances['seq_5p'], instances['seq_3p'], instances['seq_ref'], instances['seq_alt'])]
 
-
 nucleotide_mapping = {'-': 0, 'N': 0, 'A': 1, 'T': 2, 'C': 3, 'G': 4}
 instances['seq_5p'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_5p']), axis=0)
 instances['seq_3p'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_3p']), axis=0)
 instances['seq_ref'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_ref']), axis=0)
 instances['seq_alt'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_alt']), axis=0)
-
 
 variant_encoding = np.array([0, 2, 1, 4, 3])
 instances['seq_5p'] = np.stack([instances['seq_5p'], variant_encoding[instances['seq_3p'][:, ::-1]]], axis=2)
@@ -128,4 +126,7 @@ del i, t
 
 with open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'classification' / 'experiment_4' / 'sim_data.pkl', 'wb') as f:
     pickle.dump([instances, samples, ], f)
+
+
+
 

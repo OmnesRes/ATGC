@@ -289,22 +289,23 @@ class RaggedModels:
 
                 aggregation = pooled_hidden[-1]
 
+
+                if self.mode == 'none': #assumes you need a newaxis
+                    pooled_hidden = [pooled_hidden[-1][:, tf.newaxis, :]]
+                    assert self.heads == 1
+
             if self.sample_encoders != []:
                 if self.fusion == 'after':
                     if self.instance_encoders != []:
                         ##need to broadcast
                         fused = [tf.concat([pooled_hidden[-1], tf.broadcast_to(sample_fused[:, tf.newaxis, :], [tf.shape(sample_fused)[0], self.heads, sample_fused.shape[-1]])], axis=-1)]
                     else:
-                        fused = [sample_fused]
+                        fused = [sample_fused[:, tf.newaxis, :]]
                 else:
                     fused = [pooled_hidden[-1]]
 
             else:
                 fused = [pooled_hidden[-1]]
-
-            if self.mode == 'none': #assumes you need a newaxis
-                fused = [fused[-1][:, tf.newaxis, :]]
-                assert self.heads == 1
 
             head_networks = [[fused[-1][:, head, :]] for head in range(self.heads)]
 

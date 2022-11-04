@@ -35,6 +35,7 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
 
     control_variants = [generate_variant() for i in range(control_count)]
     if control:
+        ##this could be more efficient, replace offending variant with a checked variant
         while True:
             y = False
             for i in control_variants:
@@ -82,7 +83,6 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
 
     return [control_variants + positive_variants, [0] * len(control_variants) + positive_instances]
 
-
 ##dictionary for instance level data
 instances = {'sample_idx': [],
                  'seq_5p': [],
@@ -122,7 +122,6 @@ for idx in range(1000):
 for i in instances:
     instances[i] = np.array(instances[i])
 
-
 def get_context(five_p, three_p, ref, alt):
     if ref[0] == 'T' or ref[0] == 'C':
         return five_p[-1] + ref[0] + alt[0] + three_p[0]
@@ -136,7 +135,6 @@ instances['seq_5p'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotid
 instances['seq_3p'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_3p']), axis=0)
 instances['seq_ref'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_ref']), axis=0)
 instances['seq_alt'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_alt']), axis=0)
-
 
 variant_encoding = np.array([0, 2, 1, 4, 3])
 instances['seq_5p'] = np.stack([instances['seq_5p'], variant_encoding[instances['seq_3p'][:, ::-1]]], axis=2)
