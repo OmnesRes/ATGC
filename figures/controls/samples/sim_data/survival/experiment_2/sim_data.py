@@ -1,8 +1,3 @@
-from lifelines import KaplanMeierFitter
-from lifelines.utils import concordance_index
-from lifelines import CoxPHFitter
-import pylab as plt
-import pandas as pd
 from scipy.stats import percentileofscore
 from figures.controls.samples.sim_data.sim_data_tools import *
 import pickle
@@ -12,8 +7,6 @@ if path.stem == 'ATGC':
     cwd = path
 else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
-    import sys
-    sys.path.append(str(cwd))
 
 
 def generate_times(n=200, mean_time=365, risk=0):
@@ -31,9 +24,8 @@ def generate_times(n=200, mean_time=365, risk=0):
     return observed_time, observed_event
 
 
-
 def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250, 300],
-                    mean_positive=None, num_positive=None, control=True, positive_choices=None, negative_instances=False):
+                    mean_positive=None, num_positive=None, control=True, positive_choices=None, negative_instances=False, fixed=['five_p']):
     if negative_instances and len(positive_choices) <= 1:
         raise ValueError
     center = np.random.choice(mean_variants, 1)
@@ -67,7 +59,7 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
     while True:
         y = False
         for i in control_variants:
-            if check_variant(i, positive_choices):
+            if check_variant(i, positive_choices, to_check=fixed):
                 print('checked')
                 y = True
                 break
@@ -80,7 +72,16 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
         if negative_instances:
             positive_choice = int(np.random.choice(range(len(positive_choices)), 1))
             for i in range(positive_count):
-                positive_variants.append(positive_choices[positive_choice])
+                positive_variant = list(generate_variant())
+                if 'five_p' in fixed:
+                    positive_variant[0] = positive_choices[positive_choice][0]
+                if 'three_p' in fixed:
+                    positive_variant[1] = positive_choices[positive_choice][1]
+                if 'ref' in fixed:
+                    positive_variant[2] = positive_choices[positive_choice][2]
+                if 'alt' in fixed:
+                    positive_variant[3] = positive_choices[positive_choice][3]
+                positive_variants.append(positive_variant)
                 positive_instances.append(positive_choice + 1)
         else:
             pass
@@ -88,7 +89,16 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
     else:
         for index, i in enumerate(positive_choices):
             for ii in range(positive_count):
-                positive_variants.append(i)
+                positive_variant = list(generate_variant())
+                if 'five_p' in fixed:
+                    positive_variant[0] = i[0]
+                if 'three_p' in fixed:
+                    positive_variant[1] = i[1]
+                if 'ref' in fixed:
+                    positive_variant[2] = i[2]
+                if 'alt' in fixed:
+                    positive_variant[3] = i[3]
+                positive_variants.append(positive_variant)
                 positive_instances.append(index + 1)
 
     return [control_variants + positive_variants, [0] * len(control_variants) + positive_instances]
@@ -139,7 +149,6 @@ instances['seq_3p'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotid
 instances['seq_ref'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_ref']), axis=0)
 instances['seq_alt'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_alt']), axis=0)
 
-
 variant_encoding = np.array([0, 2, 1, 4, 3])
 instances['seq_5p'] = np.stack([instances['seq_5p'], variant_encoding[instances['seq_3p'][:, ::-1]]], axis=2)
 instances['seq_3p'] = np.stack([instances['seq_3p'], variant_encoding[instances['seq_5p'][:, :, 0][:, ::-1]]], axis=2)
@@ -157,17 +166,12 @@ del i, t
 zero_data = generate_times(n=sum(samples['classes'] == 0),  risk=0)
 one_data = generate_times(n=sum(samples['classes'] == 1),  risk=2)
 two_data = generate_times(n=sum(samples['classes'] == 2),  risk=-2)
-# three_data = generate_times(n=sum(samples['classes'] == 3),  risk=1.5)
-# four_data = generate_times(n=sum(samples['classes'] == 4),  risk=2)
-
 
 samples['times'] = []
 samples['event'] = []
 zero_count = 0
 one_count = 0
 two_count = 0
-three_count = 0
-four_count = 0
 
 
 for i in samples['classes']:
@@ -179,78 +183,16 @@ for i in samples['classes']:
         samples['times'].append(one_data[0][one_count])
         samples['event'].append(one_data[1][one_count])
         one_count += 1
-    elif i ==2:
+    elif i == 2:
         samples['times'].append(two_data[0][two_count])
         samples['event'].append(two_data[1][two_count])
         two_count += 1
-    # elif i == 3:
-    #     samples['times'].append(three_data[0][three_count])
-    #     samples['event'].append(three_data[1][three_count])
-    #     three_count += 1
-    # else:
-    #     samples['times'].append(four_data[0][four_count])
-    #     samples['event'].append(four_data[1][four_count])
-    #     four_count += 1
     else:
         pass
+
 samples['times'] = np.array(samples['times'])
 samples['event'] = np.array(samples['event'])
 
-
-##plotting
-fig=plt.figure()
-ax = fig.add_subplot(111)
-
-kmf_zero = KaplanMeierFitter()
-kmf_zero.fit(zero_data[0], zero_data[1])
-kmf_zero.plot(show_censors=True, ci_show=False, ax=ax, label='zero')
-
-kmf_one = KaplanMeierFitter()
-kmf_one.fit(one_data[0], one_data[1])
-kmf_one.plot(show_censors=True, ci_show=False, ax=ax, label='one')
-
-kmf_two = KaplanMeierFitter()
-kmf_two.fit(two_data[0], two_data[1])
-kmf_two.plot(show_censors=True, ci_show=False, ax=ax, label='two')
-
-# kmf_three = KaplanMeierFitter()
-# kmf_three.fit(three_data[0], three_data[1])
-# kmf_three.plot(show_censors=True, ci_show=False, ax=ax, label='three')
-#
-# kmf_four = KaplanMeierFitter()
-# kmf_four.fit(four_data[0], four_data[1])
-# kmf_four.plot(show_censors=True, ci_show=False, ax=ax, label='four')
-plt.legend()
-plt.show()
-
-
-
-# ##lifelines
-risk_dict = {}
-concordance_index(samples['times'], np.exp(-1 * ((samples['classes'] - 2) * -1)), samples['event'])
-
-
-
-with open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'survival' / 'experiment_3' / 'sim_data.pkl', 'wb') as f:
-    pickle.dump([instances, samples, ], f)
-
-##cox regression
-
-##lifelines
-##need a dataframe
-
-# d = {'risks': np.concatenate([np.zeros(500), np.ones(500)]),
-#      'times': np.concatenate([low_risk_group[0], high_risk_group[0]]),
-#      'events': np.concatenate([low_risk_group[1], high_risk_group[1]])}
-# data = pd.DataFrame(data=d)
-#
-#
-# cph = CoxPHFitter()
-# cph.fit(data, 'times', 'events')
-# cph.print_summary()
-
-
-
-
-
+with open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'survival' / 'experiment_2' / 'sim_data.pkl', 'wb') as f:
+    pickle.dump([instances, samples], f)
 

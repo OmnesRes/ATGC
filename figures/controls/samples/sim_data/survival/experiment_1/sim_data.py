@@ -1,8 +1,6 @@
 from lifelines import KaplanMeierFitter
 from lifelines.utils import concordance_index
-from lifelines import CoxPHFitter
 import pylab as plt
-import pandas as pd
 from scipy.stats import percentileofscore
 from figures.controls.samples.sim_data.sim_data_tools import *
 import pickle
@@ -12,8 +10,6 @@ if path.stem == 'ATGC':
     cwd = path
 else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
-
-
 
 def generate_times(n=200, mean_time=365, risk=0):
     risk_score = np.full((n), risk)
@@ -29,10 +25,8 @@ def generate_times(n=200, mean_time=365, risk=0):
     observed_time = np.where(observed_event, t, c)
     return observed_time, observed_event
 
-
-
 def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250, 300],
-                    mean_positive=None, num_positive=None, control=True, positive_choices=None, negative_instances=False):
+                    mean_positive=None, num_positive=None, control=True, positive_choices=None, negative_instances=False, fixed=['five_p']):
     if negative_instances and len(positive_choices) <= 1:
         raise ValueError
     center = np.random.choice(mean_variants, 1)
@@ -66,7 +60,7 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
     while True:
         y = False
         for i in control_variants:
-            if check_variant(i, positive_choices):
+            if check_variant(i, positive_choices, to_check=fixed):
                 print('checked')
                 y = True
                 break
@@ -79,7 +73,16 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
         if negative_instances:
             positive_choice = int(np.random.choice(range(len(positive_choices)), 1))
             for i in range(positive_count):
-                positive_variants.append(positive_choices[positive_choice])
+                positive_variant = list(generate_variant())
+                if 'five_p' in fixed:
+                    positive_variant[0] = positive_choices[positive_choice][0]
+                if 'three_p' in fixed:
+                    positive_variant[1] = positive_choices[positive_choice][1]
+                if 'ref' in fixed:
+                    positive_variant[2] = positive_choices[positive_choice][2]
+                if 'alt' in fixed:
+                    positive_variant[3] = positive_choices[positive_choice][3]
+                positive_variants.append(positive_variant)
                 positive_instances.append(positive_choice + 1)
         else:
             pass
@@ -87,7 +90,16 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
     else:
         for index, i in enumerate(positive_choices):
             for ii in range(positive_count):
-                positive_variants.append(i)
+                positive_variant = list(generate_variant())
+                if 'five_p' in fixed:
+                    positive_variant[0] = i[0]
+                if 'three_p' in fixed:
+                    positive_variant[1] = i[1]
+                if 'ref' in fixed:
+                    positive_variant[2] = i[2]
+                if 'alt' in fixed:
+                    positive_variant[3] = i[3]
+                positive_variants.append(positive_variant)
                 positive_instances.append(index + 1)
 
     return [control_variants + positive_variants, [0] * len(control_variants) + positive_instances]
@@ -104,10 +116,8 @@ instances = {'sample_idx': [],
                   'cds': [],
                   'class': []}
 
-
 ##how many different variants you want to label a positive sample
 positive_choices = [generate_variant() for i in range(1)]
-
 
 samples = {'classes': []}
 
@@ -138,7 +148,6 @@ instances['seq_3p'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotid
 instances['seq_ref'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_ref']), axis=0)
 instances['seq_alt'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_alt']), axis=0)
 
-
 variant_encoding = np.array([0, 2, 1, 4, 3])
 instances['seq_5p'] = np.stack([instances['seq_5p'], variant_encoding[instances['seq_3p'][:, ::-1]]], axis=2)
 instances['seq_3p'] = np.stack([instances['seq_3p'], variant_encoding[instances['seq_5p'][:, :, 0][:, ::-1]]], axis=2)
@@ -159,7 +168,6 @@ two_data = generate_times(n=sum(samples['classes'] == 2),  risk=1)
 three_data = generate_times(n=sum(samples['classes'] == 3),  risk=1.5)
 four_data = generate_times(n=sum(samples['classes'] == 4),  risk=2)
 
-
 samples['times'] = []
 samples['event'] = []
 zero_count = 0
@@ -167,7 +175,6 @@ one_count = 0
 two_count = 0
 three_count = 0
 four_count = 0
-
 
 for i in samples['classes']:
     if i == 0:
@@ -193,7 +200,6 @@ for i in samples['classes']:
 
 samples['times'] = np.array(samples['times'])
 samples['event'] = np.array(samples['event'])
-
 
 ##plotting
 fig=plt.figure()
@@ -221,12 +227,10 @@ kmf_four.plot(show_censors=True, ci_show=False, ax=ax, label='four')
 plt.legend()
 plt.show()
 
-
-
-# ##lifelines
+##lifelines
 concordance_index(samples['times'], np.exp(-1 * samples['classes']), samples['event'])
 
-with open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'survival' / 'experiment_2' / 'sim_data.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'survival' / 'experiment_1' / 'sim_data.pkl', 'wb') as f:
     pickle.dump([instances, samples, ], f)
 
 
