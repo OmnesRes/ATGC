@@ -7,7 +7,7 @@ if path.stem == 'ATGC':
 else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
 def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250, 300],
-                    positive_choices=None):
+                    positive_choices=None, fixed=['five_p']):
     center = np.random.choice(mean_variants, 1)
     total_count = int(np.random.normal(center, int(np.ceil(center * .2))))
     if total_count < 1:
@@ -23,10 +23,12 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
     positive_instances = []
 
     control_variants = [generate_variant() for i in range(control_count)]
+
+    ##this could be more efficient, replace offending variant with a checked variant
     while True:
         y = False
         for i in control_variants:
-            if check_variant(i, positive_choices):
+            if check_variant(i, positive_choices, to_check=fixed):
                 print('checked')
                 y = True
                 break
@@ -34,10 +36,18 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
             control_variants = [generate_variant() for i in range(control_count)]
         else:
             break
-
     for index, i in enumerate(positive_choices):
         for ii in range(positive_count):
-            positive_variants.append(i)
+            positive_variant = list(generate_variant())
+            if 'five_p' in fixed:
+                positive_variant[0] = i[0]
+            if 'three_p' in fixed:
+                positive_variant[1] = i[1]
+            if 'ref' in fixed:
+                positive_variant[2] = i[2]
+            if 'alt' in fixed:
+                positive_variant[3] = i[3]
+            positive_variants.append(positive_variant)
             positive_instances.append(index + 1)
 
     sample_value = np.random.normal(positive_count, positive_count / 10)
@@ -60,7 +70,7 @@ instances = {'sample_idx': [],
 ##how many different variants you want to label a positive sample
 positive_choices = [generate_variant() for i in range(1)]
 
-samples = {'classes': [], 'values':[]}
+samples = {'classes': [], 'values': []}
 
 for idx in range(1000):
     variants = generate_sample(positive_choices=positive_choices)
@@ -86,7 +96,6 @@ instances['seq_3p'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotid
 instances['seq_ref'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_ref']), axis=0)
 instances['seq_alt'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_alt']), axis=0)
 
-
 variant_encoding = np.array([0, 2, 1, 4, 3])
 instances['seq_5p'] = np.stack([instances['seq_5p'], variant_encoding[instances['seq_3p'][:, ::-1]]], axis=2)
 instances['seq_3p'] = np.stack([instances['seq_3p'], variant_encoding[instances['seq_5p'][:, :, 0][:, ::-1]]], axis=2)
@@ -102,18 +111,3 @@ del i, t
 
 with open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'regression' / 'experiment_1' / 'sim_data.pkl', 'wb') as f:
     pickle.dump([instances, samples, ], f)
-
-
-
-
-#
-# import pylab as plt
-# sample_counts = []
-# for i in range(len(samples['values'])):
-#     indexes = np.where(instances['sample_idx'] == i)
-#     sample_counts.append(sum(instances['class'][indexes]))
-#
-# plt.scatter(sample_counts, samples['values'], s=.1)
-# # plt.hist(samples['values'], bins=100)
-#
-# plt.show()

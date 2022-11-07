@@ -14,10 +14,9 @@ else:
 
 D, samples = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'regression' / 'experiment_2' / 'sim_data.pkl', 'rb'))
 
-idx_test, instance_sum_predictions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'regression' / 'experiment_2' / 'instance_model_sum_predictions.pkl', 'rb'))
-idx_test, instance_mean_predictions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'regression' / 'experiment_2' / 'instance_model_mean_predictions.pkl', 'rb'))
-idx_test, sample_sum_predictions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'regression' / 'experiment_2' / 'sample_model_sum_predictions.pkl', 'rb'))
-idx_test, sample_mean_predictions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'regression' / 'experiment_2' / 'sample_model_mean_predictions.pkl', 'rb'))
+idx_test, mean_predictions, mean_attentions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'regression' / 'experiment_2' / 'sample_model_attention_mean_predictions.pkl', 'rb'))
+idx_test, sum_predictions, sum_attentions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'regression' / 'experiment_2' / 'sample_model_attention_sum_predictions.pkl', 'rb'))
+idx_test, dynamic_predictions, dynamic_attentions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'regression' / 'experiment_2' / 'sample_model_attention_dynamic_predictions.pkl', 'rb'))
 
 ##get x_true and y_true
 
@@ -28,12 +27,12 @@ for sample_idx in idx_test:
 
 y_true = np.array(samples['values'])[idx_test]
 
-predictions = [y_true, instance_mean_predictions, instance_sum_predictions, sample_mean_predictions, sample_sum_predictions]
+predictions = [y_true, mean_predictions, sum_predictions, dynamic_predictions]
 
 
 z_order = np.arange(0, len(x_true))
 paired = [cm.get_cmap('Paired')(i) for i in range(12) if i not in [4, 5]]
-colors = ['k', paired[1], paired[3], paired[5], paired[7]]
+colors = ['k', paired[1], paired[3], paired[5]]
 fig = plt.figure()
 ax = fig.add_subplot(111)
 fig.subplots_adjust(
@@ -43,7 +42,7 @@ left=0.035,
 right=1.0,
 hspace=0.2,
 wspace=0.2)
-for index, i in enumerate(['True Value', 'Instance Mean', 'Instance Sum', 'Sample Mean', 'Sample Sum']):
+for index, i in enumerate(['True Value', 'Mean', 'Sum', 'Dynamic']):
     if index != 0:
         for index2, (x, y) in enumerate(zip(x_true, np.exp(predictions[index][0]) - 1)):
             if index2 == len(x_true) - 1:
@@ -54,14 +53,13 @@ for index, i in enumerate(['True Value', 'Instance Mean', 'Instance Sum', 'Sampl
     else:
         for index2, (x, y) in enumerate(zip(x_true, predictions[index])):
             if index2 == len(x_true) - 1:
-                ax.scatter(x, y, color=colors[index], linewidths=.5, zorder=np.random.choice(z_order), label=i)
+                ax.scatter(x, y, color=colors[index], linewidths=.5, zorder=1000, label=i)
             else:
-                ax.scatter(x, y, color=colors[index], linewidths=.5, zorder=np.random.choice(z_order))
-
+                ax.scatter(x, y, color=colors[index], linewidths=.5, zorder=1000)
 
 ax.set_yticks([])
 ax.set_xticks([])
-ax.set_ylim([-2000, max(y_true) + 1000])
+
 ax.set_ylabel('Bag Value', fontsize=24, labelpad=-10)
 ax.set_xlabel('Key Instance Count', fontsize=24, labelpad=0)
 ax.spines['top'].set_visible(False)
