@@ -8,7 +8,7 @@ else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
 
 def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250, 300],
-                    positive_choices=None, factor=1):
+                    positive_choices=None, factor=1, fixed=['five_p']):
     center = np.random.choice(mean_variants, 1)
     total_count = int(np.random.normal(center, int(np.ceil(center * .2))))
     if total_count < 1:
@@ -27,7 +27,7 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
     while True:
         y = False
         for i in control_variants:
-            if check_variant(i, positive_choices):
+            if check_variant(i, positive_choices, to_check=fixed):
                 print('checked')
                 y = True
                 break
@@ -38,7 +38,16 @@ def generate_sample(mean_variants=[5, 10, 20, 30, 40, 50, 70, 100, 150, 200, 250
 
     for index, i in enumerate(positive_choices):
         for ii in range(positive_count):
-            positive_variants.append(i)
+            positive_variant = list(generate_variant())
+            if 'five_p' in fixed:
+                positive_variant[0] = i[0]
+            if 'three_p' in fixed:
+                positive_variant[1] = i[1]
+            if 'ref' in fixed:
+                positive_variant[2] = i[2]
+            if 'alt' in fixed:
+                positive_variant[3] = i[3]
+            positive_variants.append(positive_variant)
             positive_instances.append(index + 1)
 
     sample_value = np.random.normal(positive_count * factor, positive_count / 10)
@@ -92,7 +101,6 @@ instances['seq_3p'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotid
 instances['seq_ref'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_ref']), axis=0)
 instances['seq_alt'] = np.stack(np.apply_along_axis(lambda x: np.array([nucleotide_mapping[i] for i in x]), -1, instances['seq_alt']), axis=0)
 
-
 variant_encoding = np.array([0, 2, 1, 4, 3])
 instances['seq_5p'] = np.stack([instances['seq_5p'], variant_encoding[instances['seq_3p'][:, ::-1]]], axis=2)
 instances['seq_3p'] = np.stack([instances['seq_3p'], variant_encoding[instances['seq_5p'][:, :, 0][:, ::-1]]], axis=2)
@@ -106,7 +114,7 @@ t[i] = variant_encoding[instances['seq_alt'][:, ::-1]][i[:, ::-1]]
 instances['seq_alt'] = np.stack([instances['seq_alt'], t], axis=2)
 del i, t
 
-with open(cwd / 'figures' / 'controls' / 'samples' /  'sim_data' / 'sample_info' / 'experiment_1' / 'sim_data.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'sample_info' / 'experiment_1' / 'sim_data.pkl', 'wb') as f:
     pickle.dump([instances, samples, ], f)
 
 

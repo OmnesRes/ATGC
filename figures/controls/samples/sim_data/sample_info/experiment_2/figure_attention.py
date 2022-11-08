@@ -18,8 +18,6 @@ D, samples = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_da
 
 idx_test, sum_before_attentions, predictions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_before_eval.pkl', 'rb'))
 idx_test, sum_after_attentions, predictions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_sum_after_eval.pkl', 'rb'))
-idx_test, both_before_attentions, predictions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_both_before_eval.pkl', 'rb'))
-idx_test, both_after_attentions, predictions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_both_after_eval.pkl', 'rb'))
 idx_test, dynamic_before_attentions, predictions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_dynamic_before_eval.pkl', 'rb'))
 idx_test, dynamic_after_attentions, predictions = pickle.load(open(cwd / 'figures' / 'controls' / 'samples' / 'sim_data' / 'sample_info' / 'experiment_2' / 'sample_model_dynamic_after_eval.pkl', 'rb'))
 
@@ -33,20 +31,17 @@ for i in indexes:
 
 
 models = np.concatenate(classes).shape[0] * [0] + np.concatenate(classes).shape[0] * [1] + np.concatenate(classes).shape[0] * [2]+\
-         np.concatenate(classes).shape[0] * [3] + np.concatenate(classes).shape[0] * [4] + np.concatenate(classes).shape[0] * [5]
+         np.concatenate(classes).shape[0] * [3]
 
 
-classes = np.concatenate([np.concatenate(classes), np.concatenate(classes) + 2, np.concatenate(classes) + 4, np.concatenate(classes) + 6,
-                          np.concatenate(classes) + 8, np.concatenate(classes) + 10])
+classes = np.concatenate([np.concatenate(classes), np.concatenate(classes) + 2, np.concatenate(classes) + 4, np.concatenate(classes) + 6])
 
-types = list(np.concatenate(np.array([np.array(samples['type'])[D['sample_idx']][i] for i in indexes]))) * 6
+types = list(np.concatenate(np.array([np.array(samples['type'])[D['sample_idx']][i] for i in indexes]))) * 4
 
-attention = np.concatenate([np.concatenate(sum_before_attentions[1][:20]),
-                            np.concatenate(sum_after_attentions[1][:20]),
-                            np.concatenate(both_before_attentions[1][:20]),
-                            np.concatenate(both_after_attentions[1][:20]),
-                            np.concatenate(dynamic_before_attentions[1][:20]),
-                            np.concatenate(dynamic_after_attentions[1][:20]),
+attention = np.concatenate([np.concatenate(sum_before_attentions[0][:20]),
+                            np.concatenate(sum_after_attentions[0][:20]),
+                            np.concatenate(dynamic_before_attentions[0][:20]),
+                            np.concatenate(dynamic_after_attentions[0][:20]),
                             ])
 
 instance_df = pd.DataFrame({'attention': attention.flat, 'class': classes, 'model': models, 'type': types})
