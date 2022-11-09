@@ -91,23 +91,21 @@ while True:
 with open(cwd / 'figures' / 'controls' / 'instances' / 'gene' / 'results' / 'weights.pkl', 'wb') as f:
     pickle.dump(mil.model.get_weights(), f)
 
-predictions = []
-for weight, idx_test in zip(weights, test_idx):
-    mil.model.set_weights(weight)
-    ds_test = tf.data.Dataset.from_tensor_slices((idx_test, y_label[idx_test]))
-    ds_test = ds_test.batch(len(idx_test), drop_remainder=True)
-    ds_test = ds_test.map(lambda x, y: ((tf.gather(D['genes'], x),
-                                           ),
-                                             y,
-                                             ))
 
-    mil.model.evaluate(ds_test)
+ds_test = tf.data.Dataset.from_tensor_slices((idx_test, y_label[idx_test]))
+ds_test = ds_test.batch(len(idx_test), drop_remainder=True)
+ds_test = ds_test.map(lambda x, y: ((tf.gather(D['genes'], x),
+                                       ),
+                                         y,
+                                         ))
 
-    P = mil.model.predict(ds_test)
-    z = np.exp(P - np.max(P, axis=1, keepdims=True))
-    predictions.append(z / np.sum(z, axis=1, keepdims=True))
+mil.model.evaluate(ds_test)
 
-y_true = np.argmax(y_label[test_idx], axis=-1)
+P = mil.model.predict(ds_test)
+z = np.exp(P - np.max(P, axis=1, keepdims=True))
+predictions = z / np.sum(z, axis=1, keepdims=True)
+
+y_true = np.argmax(y_label[idx_test], axis=-1)
 y_pred = np.argmax(predictions, axis=-1)
 
 matrix = confusion_matrix(y_true, y_pred)

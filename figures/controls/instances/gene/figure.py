@@ -30,7 +30,7 @@ def make_colormap(colors):
 
 
 labels = ['other', 'MLH1', 'MSH2', 'MSH6', 'PMS2', 'TP53', 'PTEN', 'KRAS']
-matrix = pickle.load(open(cwd / 'figures' / 'controls' / 'instances' / 'position' / 'results' / 'matrix.pkl', 'rb'))
+matrix = pickle.load(open(cwd / 'figures' / 'controls' / 'instances' / 'gene' / 'results' / 'matrix.pkl', 'rb'))
 
 
 fig = plt.figure()
@@ -83,5 +83,5 @@ ax4.spines['right'].set_visible(False)
 ax4.spines['left'].set_visible(False)
 ax4.spines['top'].set_visible(False)
 cbar = fig.colorbar(figure_matrix, cax=ax3, ticks=[0, .2, .4, .6, .8, 1])
-plt.savefig(cwd / 'figures' / 'controls' / 'instances' / 'position' / 'position.png', dpi=600)
+plt.savefig(cwd / 'figures' / 'controls' / 'instances' / 'gene' / 'gene.png', dpi=600)
 
