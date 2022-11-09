@@ -79,7 +79,7 @@ while True:
 
     mil.model.fit(ds_train,
                   steps_per_epoch=10,
-                  epochs=1000000,
+                  epochs=1100,
                   validation_data=ds_valid,
                   shuffle=True,
                   callbacks=callbacks)
