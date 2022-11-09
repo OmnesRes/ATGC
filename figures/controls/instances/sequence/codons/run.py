@@ -5,9 +5,8 @@ from model.KerasLayers import Losses, Metrics
 from sklearn.model_selection import StratifiedShuffleSplit
 import pickle
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[-1], True)
-tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
-
+tf.config.experimental.set_memory_growth(physical_devices[-2], True)
+tf.config.experimental.set_visible_devices(physical_devices[-2], 'GPU')
 
 from sklearn.metrics import confusion_matrix
 import pathlib
@@ -60,51 +59,49 @@ idx_train, idx_test = list(StratifiedShuffleSplit(n_splits=1, test_size=200000, 
 idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300000, random_state=0).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
 
 batch_size = 50000
-ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_weights[idx_train]))
-ds_train = ds_train.shuffle(len(idx_train), reshuffle_each_iteration=True).batch(batch_size, drop_remainder=True).repeat()
-ds_train = ds_train.map(lambda x, y, z: ((tf.gather(tf.constant(D['seq_5p'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_3p'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_ref'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_alt'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['strand_emb'], dtype=tf.float32), x),
-                                      tf.gather(tf.constant(D['cds_emb'], dtype=tf.float32), x)
-                                       ),
-                                       y,
-                                       z
-                                       ))
 
-ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, y_label[idx_valid], y_weights[idx_valid]))
+ds_train = tf.data.Dataset.from_tensor_slices(((D['seq_5p'][idx_train],
+                                               D['seq_3p'][idx_train],
+                                               D['seq_ref'][idx_train],
+                                               D['seq_alt'][idx_train],
+                                               D['strand_emb'][idx_train],
+                                               # D['cds_emb'][idx_train],
+                                               ),
+                                               y_label[idx_train],
+                                               y_weights[idx_train]
+                                              ))
+ds_train = ds_train.batch(batch_size, drop_remainder=True).repeat()
+
+
+
+ds_valid = tf.data.Dataset.from_tensor_slices(((D['seq_5p'][idx_valid],
+                                               D['seq_3p'][idx_valid],
+                                               D['seq_ref'][idx_valid],
+                                               D['seq_alt'][idx_valid],
+                                               D['strand_emb'][idx_valid],
+                                               # D['cds_emb'][idx_valid],
+                                               ),
+                                               y_label[idx_valid],
+                                               y_weights[idx_valid]
+                                              ))
 ds_valid = ds_valid.batch(len(idx_valid), drop_remainder=False)
-ds_valid = ds_valid.map(lambda x, y, z: ((tf.gather(tf.constant(D['seq_5p'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_3p'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_ref'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_alt'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['strand_emb'], dtype=tf.float32), x),
-                                      tf.gather(tf.constant(D['cds_emb'], dtype=tf.float32), x)
-                                       ),
-                                       y,
-                                       z
-                                       ))
 
 
 
-
-ds_test = tf.data.Dataset.from_tensor_slices((idx_test, y_label[idx_test]))
+ds_test = tf.data.Dataset.from_tensor_slices(((D['seq_5p'][idx_test],
+                                               D['seq_3p'][idx_test],
+                                               D['seq_ref'][idx_test],
+                                               D['seq_alt'][idx_test],
+                                               D['strand_emb'][idx_test],
+                                               # D['cds_emb'][idx_test],
+                                               ),
+                                               y_label[idx_test],
+                                               y_weights[idx_test]
+                                              ))
 ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
-ds_test = ds_test.map(lambda x, y: ((tf.gather(tf.constant(D['seq_5p'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_3p'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_ref'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_alt'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['strand_emb'], dtype=tf.float32), x),
-                                      tf.gather(tf.constant(D['cds_emb'], dtype=tf.float32), x)
-                                       ),
-                                       y,
-                                      ))
 
-
-
-sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [64, 64, 64, 64], fusion_dimension=128, use_frame=True)
-mil = RaggedModels.MIL(instance_encoders=[], sample_encoders=[sequence_encoder.model], output_dims=[y_label.shape[-1]], output_types=['other'], mil_hidden=[128, 128, 64, 32], mode='none')
+sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [64, 64, 64, 64], fusion_dimension=128, use_frame=False)
+mil = RaggedModels.MIL(instance_encoders=[], sample_encoders=[sequence_encoder.model], output_dims=[y_label.shape[-1]], mil_hidden=[128, 128, 64, 32], mode='none')
 losses = [Losses.CrossEntropy()]
 mil.model.compile(loss=losses,
                   metrics=[Metrics.Accuracy(), Metrics.CrossEntropy()],
@@ -121,8 +118,7 @@ mil.model.fit(ds_train, steps_per_epoch=50,
               callbacks=callbacks,
               )
 
-
-with open(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'codons' / 'results' / 'weights_with_frame.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'codons' / 'results' / 'weights_no_frame.pkl', 'wb') as f:
     pickle.dump(mil.model.get_weights(), f)
 
 P = mil.model.predict(ds_test)
@@ -134,6 +130,6 @@ y_pred = np.argmax(predictions, axis=-1)
 
 matrix = confusion_matrix(y_true, y_pred)
 
-with open(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'codons' / 'results' / 'matrix_with_frame.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'codons' / 'results' / 'matrix_no_frame.pkl', 'wb') as f:
     pickle.dump(matrix, f)
 

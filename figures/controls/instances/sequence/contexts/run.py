@@ -40,44 +40,46 @@ idx_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_
 
 batch_size = 50000
 
-ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_label[idx_train], y_weights[idx_train]))
-ds_train = ds_train.shuffle(len(idx_train), reshuffle_each_iteration=True).batch(batch_size, drop_remainder=True).repeat()
-ds_train = ds_train.map(lambda x, y, z: ((tf.gather(tf.constant(D['seq_5p'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_3p'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_ref'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_alt'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['strand_emb'], dtype=tf.float32), x)
-                                       ),
-                                       y,
-                                       z
-                                       ))
+ds_train = tf.data.Dataset.from_tensor_slices(((D['seq_5p'][idx_train],
+                                               D['seq_3p'][idx_train],
+                                               D['seq_ref'][idx_train],
+                                               D['seq_alt'][idx_train],
+                                               D['strand_emb'][idx_train],
+                                               ),
+                                               y_label[idx_train],
+                                               y_weights[idx_train]
+                                              ))
+ds_train = ds_train.batch(batch_size, drop_remainder=True).repeat()
 
-ds_valid = tf.data.Dataset.from_tensor_slices((idx_valid, y_label[idx_valid], y_weights[idx_valid]))
+
+
+ds_valid = tf.data.Dataset.from_tensor_slices(((D['seq_5p'][idx_valid],
+                                               D['seq_3p'][idx_valid],
+                                               D['seq_ref'][idx_valid],
+                                               D['seq_alt'][idx_valid],
+                                               D['strand_emb'][idx_valid],
+                                               ),
+                                               y_label[idx_valid],
+                                               y_weights[idx_valid]
+                                              ))
 ds_valid = ds_valid.batch(len(idx_valid), drop_remainder=False)
-ds_valid = ds_valid.map(lambda x, y, z: ((tf.gather(tf.constant(D['seq_5p'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_3p'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_ref'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_alt'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['strand_emb'], dtype=tf.float32), x),
-                                       ),
-                                       y,
-                                       z
-                                       ))
 
 
-ds_test = tf.data.Dataset.from_tensor_slices((idx_test, y_label[idx_test]))
+
+ds_test = tf.data.Dataset.from_tensor_slices(((D['seq_5p'][idx_test],
+                                               D['seq_3p'][idx_test],
+                                               D['seq_ref'][idx_test],
+                                               D['seq_alt'][idx_test],
+                                               D['strand_emb'][idx_test],
+                                               ),
+                                               y_label[idx_test],
+                                               y_weights[idx_test]
+                                              ))
 ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
-ds_test = ds_test.map(lambda x, y: ((tf.gather(tf.constant(D['seq_5p'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_3p'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_ref'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['seq_alt'], dtype=tf.int32), x),
-                                      tf.gather(tf.constant(D['strand_emb'], dtype=tf.float32), x),
-                                       ),
-                                       y,
-                                      ))
+
 
 sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 8, 8], fusion_dimension=128)
-mil = RaggedModels.MIL(instance_encoders=[], sample_encoders=[sequence_encoder.model], output_dims=[y_label.shape[-1]], output_types=['other'], mil_hidden=[128, 128], mode='none')
+mil = RaggedModels.MIL(instance_encoders=[], sample_encoders=[sequence_encoder.model], output_dims=[y_label.shape[-1]], mil_hidden=[128, 128], mode='none')
 losses = [Losses.CrossEntropy()]
 mil.model.compile(loss=losses,
                   metrics=[Metrics.Accuracy(), Metrics.CrossEntropy()],
@@ -91,7 +93,6 @@ mil.model.fit(ds_train, steps_per_epoch=200,
               epochs=10000,
               callbacks=callbacks,
               )
-
 
 with open(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'contexts' / 'results' / 'weights.pkl', 'wb') as f:
     pickle.dump(mil.model.get_weights(), f)
@@ -108,3 +109,4 @@ matrix = confusion_matrix(y_true, y_pred)
 
 with open(cwd / 'figures' / 'controls' / 'instances' / 'sequence' / 'contexts' / 'results' / 'matrix.pkl', 'wb') as f:
     pickle.dump(matrix, f)
+
