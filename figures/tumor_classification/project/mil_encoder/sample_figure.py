@@ -10,10 +10,10 @@ from scipy.cluster.hierarchy import dendrogram, linkage
 
 
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -69,7 +69,7 @@ y_weights_loader = DatasetsUtils.Map.FromNumpy(y_weights, tf.float32)
 
 test_idx, weights = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'context_weights.pkl', 'rb'))
 sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 16, 16], fusion_dimension=128)
-mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[], heads=y_label.shape[-1], output_types=['other'], mil_hidden=[256], attention_layers=[], dropout=.5, instance_dropout=.5, regularization=0, input_dropout=.4)
+mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[], heads=y_label.shape[-1], output_dims=[y_label.shape[-1]], mil_hidden=[256], attention_layers=[], dropout=.5, instance_dropout=.5, regularization=0, input_dropout=.4)
 mil.model.set_weights(weights[0])
 
 idx_test = test_idx[0]
@@ -124,28 +124,28 @@ matrix = np.array(aggregations)[np.argsort(prediction)[::-1]].T
 z = np.exp(matrix - np.max(matrix, axis=1, keepdims=True))
 probabilities = z / np.sum(z, axis=1, keepdims=True)
 entropies = entropy(probabilities, axis=-1)
-matrix = matrix[entropies < np.percentile(entropies, 20)]
+matrix = matrix[entropies < np.percentile(entropies, 50)]
 
 Z = linkage(matrix, 'ward')
 dn = dendrogram(Z, leaf_rotation=90, leaf_font_size=8, color_threshold=1)
 matrix = matrix[list(dn.values())[3]]
 
-vmax = np.percentile(matrix, 99)
+vmax = np.percentile(matrix / np.sum(matrix, axis=-1, keepdims=True), 99)
 myblue = make_colormap({0: '#ffffff',
                         vmax * .01: '#e9eefc',
                         vmax * .5:'#91a8ee',
                         vmax: '#4169E1'})
 
 fig = plt.figure()
-fig.subplots_adjust(hspace=-.05,
+fig.subplots_adjust(hspace=.03,
                     left=.05,
                     right=.99,
-                    bottom=.04,
+                    bottom=.06,
                     top=.94)
-gs = fig.add_gridspec(2, 1, height_ratios=[10, 1])
+gs = fig.add_gridspec(2, 1, height_ratios=[25, 1])
 ax1 = fig.add_subplot(gs[0, 0])
 ax2 = fig.add_subplot(gs[1, 0])
-figure_matrix = ax1.imshow(matrix,
+figure_matrix = ax1.imshow(matrix / np.sum(matrix, axis=-1, keepdims=True),
                            cmap=myblue,
                            vmin=0,
                            vmax=vmax,
@@ -158,7 +158,8 @@ prediction_matrix = ax2.imshow(prediction[np.argsort(prediction)[::-1]][np.newax
                            cmap=myblue,
                            vmin=0,
                            vmax=vmax,
-                          interpolation='nearest')
+                           aspect='auto',
+                           interpolation='nearest')
 
 ax1.set_xticks([])
 ax1.set_yticks([])
@@ -168,3 +169,5 @@ ax1.set_ylabel('Features', fontsize=16)
 ax1.set_xlabel('Samples', fontsize=16)
 ax1.xaxis.set_label_position('top')
 ax2.set_xlabel('Model Certainty', fontsize=16)
+plt.savefig(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'figures' / 'sample_figure.png', dpi=600)
+

@@ -7,10 +7,10 @@ from model import DatasetsUtils
 import pickle
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -20,10 +20,10 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -69,11 +69,13 @@ y_weights /= np.sum(y_weights)
 y_label_loader = DatasetsUtils.Map.FromNumpy(y_label, tf.float32)
 
 weights = []
-callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_BE', min_delta=0.002, patience=20, mode='min', restore_best_weights=True)]
+test_idx = []
+callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_BE', min_delta=0.002, patience=50, mode='min', restore_best_weights=True)]
 losses = [Losses.BinaryCrossEntropy(from_logits=True)]
 
 ##stratified K fold for test
 for idx_train, idx_test in StratifiedKFold(n_splits=9, random_state=0, shuffle=True).split(y_strat, y_strat):
+    test_idx.append(idx_test)
     while True:
         idx_train_train, idx_valid = [idx_train[idx] for idx in list(StratifiedShuffleSplit(n_splits=1, test_size=300).split(np.zeros_like(y_strat)[idx_train], y_strat[idx_train]))[0]]
         ds_train = tf.data.Dataset.from_tensor_slices((idx_train_train))
@@ -107,7 +109,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=9, random_state=0, shuffle=T
                                            ))
         ds_valid = ds_valid.batch(len(idx_valid), drop_remainder=False)
         sequence_encoder = InstanceModels.VariantSequence(20, 4, 2, [8, 8, 8, 8], fusion_dimension=128)
-        mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[], heads=y_label.shape[-1], output_types=['other'], mil_hidden=(256, 128), attention_layers=[], dropout=.5, instance_dropout=.5, regularization=.2, input_dropout=dropout)
+        mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[], heads=y_label.shape[-1], mil_hidden=(256, 128), attention_layers=[], dropout=.5, instance_dropout=.5, regularization=.05, input_dropout=dropout)
 
         mil.model.compile(loss=losses,
                           metrics=[Metrics.BinaryCrossEntropy(from_logits=True), 'accuracy'],
@@ -117,10 +119,9 @@ for idx_train, idx_test in StratifiedKFold(n_splits=9, random_state=0, shuffle=T
                       validation_data=ds_valid,
                       epochs=10000,
                       callbacks=callbacks,
-                      # workers=4
                       )
         eval = mil.model.evaluate(ds_valid)
-        if eval[1] < .07:
+        if eval[1] < .04:
             break
         else:
             del mil
@@ -128,101 +129,4 @@ for idx_train, idx_test in StratifiedKFold(n_splits=9, random_state=0, shuffle=T
 
 
 with open(cwd / 'figures' / 'msi' / 'results' / 'run.pkl', 'wb') as f:
-    pickle.dump(weights, f)
-
-
-
-
-test_idx = []
-predictions = []
-for run, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=9, shuffle=True, random_state=0).split(y_strat, y_strat)):
-    test_idx.append(idx_test)
-    mil.model.set_weights(weights[run])
-    ds_test = tf.data.Dataset.from_tensor_slices(((five_p_loader_eval(idx_test),
-                                           three_p_loader_eval(idx_test),
-                                           ref_loader_eval(idx_test),
-                                           alt_loader_eval(idx_test),
-                                           strand_loader_eval(idx_test),
-                                        ),
-                                       tf.gather(y_label, idx_test),
-                                       ))
-    ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
-
-    mil.model.evaluate(ds_test)
-    predictions.append(mil.model.predict(ds_test))
-
-from sklearn.metrics import average_precision_score
-scores = []
-for prediction, idx_test in zip(predictions, test_idx):
-    scores.append(average_precision_score(y_label[idx_test][:, 0], prediction[:, 0]))
-
-#
-# ds_test = tf.data.Dataset.from_tensor_slices(((five_p_loader_eval(idx_test),
-#                                        three_p_loader_eval(idx_test),
-#                                        ref_loader_eval(idx_test),
-#                                        alt_loader_eval(idx_test),
-#                                        strand_loader_eval(idx_test),
-#                                     ),
-#                                    tf.gather(y_label, idx_test),
-#                                    ))
-# ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
-#
-# mil.model.evaluate(ds_test)
-#
-# import pylab as plt
-# import seaborn as sns
-#
-# attention = mil.attention_model.predict(ds_test).numpy()
-# head_1 = np.concatenate([i[:, 0] for i in attention])
-# # head_2 = np.concatenate([i[:, 1] for i in attention])
-#
-# test_indexes = np.concatenate(np.array([np.where(D['sample_idx'] == i)[0] for i in samples.index], dtype='object')[idx_test], axis=-1)
-# labels_repeats = D['repeat'][test_indexes] == 1
-#
-# repeats = head_1[labels_repeats]
-# non_repeats = head_1[~labels_repeats]
-#
-#
-# fig = plt.figure()
-# ax1 = fig.add_subplot(211)
-# ax2 = fig.add_subplot(212)
-# fig.subplots_adjust(top=0.975,
-# bottom=0.07,
-# left=0.11,
-# right=0.98,
-# hspace=0.14,
-# wspace=0.04)
-# sns.kdeplot(non_repeats, shade=True, gridsize=300, ax=ax1, alpha=1)
-# sns.kdeplot(non_repeats, shade=False, gridsize=300, ax=ax1, alpha=1, color='k', linewidth=1)
-# ax1.spines['top'].set_visible(False)
-# ax1.spines['right'].set_visible(False)
-# ax1.spines['left'].set_visible(False)
-# ax1.spines['bottom'].set_linewidth(1)
-# ax1.set_xticks([])
-# ax1.tick_params(axis='y', length=0, width=0, labelsize=8)
-# ax1.set_ylabel('Variant Density (thousand)', fontsize=10)
-# # ax1.set_xlim(.04, .2)
-# ax1.set_title('Other', fontsize=12, loc='left', y=.87, x=.01)
-# sns.kdeplot(repeats, shade=True, gridsize=300, ax=ax2, alpha=1)
-# sns.kdeplot(repeats, shade=False, gridsize=300, ax=ax2, alpha=1, color='k', linewidth=1)
-# ax2.spines['top'].set_visible(False)
-# ax2.spines['right'].set_visible(False)
-# ax2.spines['left'].set_visible(False)
-# ax2.spines['bottom'].set_linewidth(1)
-# ax2.set_xticks([])
-# ax2.tick_params(axis='y', length=0, width=0, labelsize=8)
-# ax2.set_xlabel('Attention', fontsize=12)
-# ax2.set_ylabel('Variant Density (thousand)', fontsize=10, labelpad=8)
-# # ax2.set_xlim(.04, .2)
-# ax2.set_title('Simple Repeats', fontsize=12, loc='left', y=.87, x=.01)
-# fig.canvas.draw()
-# ax1.set_yticklabels([str(int(round(float(i.get_text())/100 * non_repeats.shape[0] / 1000, 0))) for i in ax1.get_yticklabels()])
-# ax2.set_yticklabels([str(int(round(float(i.get_text())/100 * repeats.shape[0] / 1000, 0))) for i in ax2.get_yticklabels()])
-# # plt.savefig(cwd / 'figures' / 'msi' / 'kde.pdf')
-#
-#
-#
-#
-#
-#
-#
+    pickle.dump([test_idx, weights], f)

@@ -11,7 +11,7 @@ if path.stem == 'ATGC':
 else:
     cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
 
-recalls, precisions, scores, predictions, sample_df, y_label, test_idx, train_valids = pickle.load(open(cwd / 'figures' / 'msi' / 'results' / 'mil_scores.pkl', 'rb'))
+recalls, precisions, scores, predictions, sample_df, y_label, test_idx = pickle.load(open(cwd / 'figures' / 'msi' / 'results' / 'mil_scores.pkl', 'rb'))
 D, tcga_maf, samples = pickle.load(open(cwd / 'figures' / 'msi' / 'data' / 'data.pkl', 'rb'))
 del D
 count_df = tcga_maf.groupby('Tumor_Sample_Barcode').size().reset_index()

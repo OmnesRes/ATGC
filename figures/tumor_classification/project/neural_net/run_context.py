@@ -9,10 +9,10 @@ from model import DatasetsUtils
 import pickle
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -46,6 +46,7 @@ context_counts = np.apply_along_axis(lambda x: np.log(x + 1), 0, np.stack(sample
 contexts_loader = DatasetsUtils.Map.FromNumpy(context_counts, tf.float32)
 y_label_loader = DatasetsUtils.Map.FromNumpy(y_label, tf.float32)
 y_weights_loader = DatasetsUtils.Map.FromNumpy(y_weights, tf.float32)
+
 
 predictions = []
 evaluations = []
@@ -99,7 +100,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
 
     for run in range(3):
         context_encoder = InstanceModels.Feature(shape=(context_counts.shape[-1]), input_dropout=0, layers=[512], regularization=.01, layer_dropouts=[.3])
-        mil = RaggedModels.MIL(instance_encoders=[], sample_encoders=[context_encoder.model], output_dims=[y_label.shape[-1]], output_types=['other'], mil_hidden=[256, 128], mode='none', dropout=.3)
+        mil = RaggedModels.MIL(instance_encoders=[], sample_encoders=[context_encoder.model], output_dims=[y_label.shape[-1]], mil_hidden=[256, 128], mode='none', dropout=.3)
         mil.model.compile(loss=losses,
                           metrics=[Metrics.CrossEntropy(), Metrics.Accuracy()],
                           optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,

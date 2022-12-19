@@ -9,10 +9,10 @@ import pylab as plt
 
 
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -68,7 +68,7 @@ y_weights_loader = DatasetsUtils.Map.FromNumpy(y_weights, tf.float32)
 
 test_idx, weights = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'context_weights.pkl', 'rb'))
 sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 16, 16], fusion_dimension=128)
-mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[], heads=y_label.shape[-1], output_types=['other'], mil_hidden=[256], attention_layers=[], dropout=.5, instance_dropout=.5, regularization=0, input_dropout=.4)
+mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[], heads=y_label.shape[-1], output_dims=[y_label.shape[-1]], mil_hidden=[256], attention_layers=[], dropout=.5, instance_dropout=.5, regularization=0, input_dropout=.4)
 mil.model.set_weights(weights[0])
 
 idx_test = test_idx[0]
@@ -85,7 +85,7 @@ ds_test = tf.data.Dataset.from_tensor_slices(((
                                             tf.gather(y_weights, idx_test)
                                             ))
 
-ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
+ds_test = ds_test.batch(500, drop_remainder=False)
 attention = mil.attention_model.predict(ds_test).numpy()
 cancer_to_code = {cancer: index for index, cancer in enumerate(A.cat.categories)}
 instances = mil.hidden_model.predict(ds_test).numpy()
@@ -150,7 +150,7 @@ fig = plt.figure()
 fig.subplots_adjust(hspace=0,
                     left=.09,
                     right=.99,
-                    bottom=.12,
+                    bottom=.13,
                     top=.99)
 gs = fig.add_gridspec(24, 1)
 ax1 = fig.add_subplot(gs[0, 0])
@@ -194,5 +194,7 @@ for ax in [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12, ax13, 
     ax.set_xticks([])
 ax24.set_xticks(np.array((range(len(cancer_to_code)))))
 ax24.set_xticklabels(list(cancer_to_code.keys()), rotation=270)
-ax24.set_xlabel('Cancer', fontsize=14)
-ax18.set_title('Attention Head', fontsize=14, rotation=90, position=[-.08,0])
+ax24.set_xlabel('Average Ramped Sums', fontsize=14)
+ax18.set_title('Attention Head', fontsize=14, rotation=90, position=[-.08, 0])
+
+plt.savefig(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'figures' / 'tumor_figure.png', dpi=600)

@@ -12,10 +12,10 @@ import pylab as plt
 import matplotlib as mpl
 
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -71,11 +71,14 @@ y_weights_loader = DatasetsUtils.Map.FromNumpy(y_weights, tf.float32)
 
 test_idx, weights = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'context_weights.pkl', 'rb'))
 sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 16, 16], fusion_dimension=128)
-mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[], heads=y_label.shape[-1], output_types=['other'], mil_hidden=[256], attention_layers=[], dropout=.5, instance_dropout=.5, regularization=0, input_dropout=.4)
+mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[], heads=y_label.shape[-1], output_dims=[y_label.shape[-1]], mil_hidden=[256], attention_layers=[], dropout=.5, instance_dropout=.5, regularization=0, input_dropout=.4)
+
+cancer_to_code = {cancer: index for index, cancer in enumerate(A.cat.categories)}
 
 sbs_folds = []
 del_folds = []
 ins_folds = []
+attentions = []
 for fold in range(5):
     mil.model.set_weights(weights[fold])
     idx_test = test_idx[fold]
@@ -93,13 +96,16 @@ for fold in range(5):
                                                 ))
     ds_test = ds_test.batch(500, drop_remainder=False)
     attention = mil.attention_model.predict(ds_test).numpy()
-    cancer_to_code = {cancer: index for index, cancer in enumerate(A.cat.categories)}
-
+    attentions.append(attention)
     test_indexes = [np.where(D['sample_idx'] == idx) for idx in samples.iloc[idx_test].index]
     refs = tcga_maf['Reference_Allele'].values[np.concatenate([i[0] for i in test_indexes])]
     alts = tcga_maf['Tumor_Seq_Allele2'].values[np.concatenate([i[0] for i in test_indexes])]
     five_ps = tcga_maf['five_p'].values[np.concatenate([i[0] for i in test_indexes])]
     three_ps = tcga_maf['three_p'].values[np.concatenate([i[0] for i in test_indexes])]
+
+    sbs_mask = [(len(i) == 1 and len(j) == 1 and len(re.findall('A|T|C|G', i)) == 1 and len(re.findall('A|T|C|G', j)) == 1) for i, j in zip(refs, alts)]
+    del_mask = [j == '-' for i, j in zip(refs, alts)]
+    ins_mask = [i == '-' for i, j in zip(refs, alts)]
 
     ref_seqs = []
     alt_seqs = []
@@ -121,11 +127,6 @@ for fold in range(5):
             alt_seqs.append(j.replace('N', '-'))
             five_p_seqs.append(k.replace('N', '-'))
             three_p_seqs.append(l.replace('N', '-'))
-
-    sbs_mask = [(len(i) == 1 and len(j) == 1 and len(re.findall('A|T|C|G', i)) == 1 and len(re.findall('A|T|C|G', j)) == 1) for i, j in zip(ref_seqs, alt_seqs)]
-    del_mask = [j == '-' for i, j in zip(ref_seqs, alt_seqs)]
-    ins_mask = [i == '-' for i, j in zip(ref_seqs, alt_seqs)]
-
 
     weighted_sbs_background_ref_matrix = []
     weighted_sbs_background_alt_matrix = []
@@ -164,6 +165,11 @@ for fold in range(5):
         cancer_alts = tcga_maf['Tumor_Seq_Allele2'].values[np.concatenate([i[0] for i in cancer_indexes])]
         cancer_five_ps = tcga_maf['five_p'].values[np.concatenate([i[0] for i in cancer_indexes])]
         cancer_three_ps = tcga_maf['three_p'].values[np.concatenate([i[0] for i in cancer_indexes])]
+
+        sbs_cancer_mask = [(len(i) == 1 and len(j) == 1 and len(re.findall('A|T|C|G', i)) == 1 and len(re.findall('A|T|C|G', j)) == 1) for i, j in zip(cancer_refs, cancer_alts)]
+        del_cancer_mask = [j == '-' for i, j in zip(cancer_refs, cancer_alts)]
+        ins_cancer_mask = [i == '-' for i, j in zip(cancer_refs, cancer_alts)]
+
         for i, j, k, l in zip(cancer_refs, cancer_alts, cancer_five_ps, cancer_three_ps):
             flip = False
             if i[0] != '-' and i[0] in ['A', 'G']:
@@ -180,10 +186,6 @@ for fold in range(5):
                 cancer_alt_seqs.append(j.replace('N', '-'))
                 cancer_five_p_seqs.append(k.replace('N', '-'))
                 cancer_three_p_seqs.append(l.replace('N', '-'))
-
-        sbs_cancer_mask = [(len(i) == 1 and len(j) == 1 and len(re.findall('A|T|C|G', i)) == 1 and len(re.findall('A|T|C|G', j)) == 1) for i, j in zip(cancer_ref_seqs, cancer_alt_seqs)]
-        del_cancer_mask = [j == '-' for i, j in zip(cancer_ref_seqs, cancer_alt_seqs)]
-        ins_cancer_mask = [i == '-' for i, j in zip(cancer_ref_seqs, cancer_alt_seqs)]
 
         cancer_attention = np.concatenate([i[:, cancer_to_code[cancer]] for i in attention])
 
@@ -324,6 +326,7 @@ for fold in range(5):
 with open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'context_figure.pkl', 'wb') as f:
     pickle.dump([sbs_folds, del_folds, ins_folds], f)
 
+# [sbs_folds, del_folds, ins_folds] = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'context_figure.pkl', 'rb'))
 
 sbs_five_p_averaged = np.mean([i[0] for i in sbs_folds], axis=0)
 sbs_ref_averaged = np.mean([i[1] for i in sbs_folds], axis=0)
@@ -357,15 +360,14 @@ def make_colormap(colors):
 
 
 ##sbs
-vmax = np.max([np.max(np.max(sbs_five_p_averaged, axis=-1)), np.max(np.max(sbs_ref_averaged, axis=-1)), np.max(np.max(sbs_alt_averaged, axis=-1)), np.max(np.max(sbs_three_p_averaged, axis=-1))])
-vmin = np.min([np.min(np.min(sbs_five_p_averaged, axis=-1)), np.min(np.min(sbs_ref_averaged, axis=-1)), np.min(np.min(sbs_alt_averaged, axis=-1)), np.min(np.min(sbs_three_p_averaged, axis=-1))])
-
+vmax = 2
+vmin = 0
 myblue = make_colormap({vmin: '#ffffff', vmax * .5: '#4169E1', vmax: '#0a1842'})
 
 fig = plt.figure()
 fig.subplots_adjust(left=.056,
                     bottom=.06,
-                    right=.95,
+                    right=.965,
                     top=.94,
                     wspace=.1)
 gs = fig.add_gridspec(1, 5, width_ratios=[6, 1, 1, 6, .5])
@@ -422,22 +424,16 @@ for ax in [ax2, ax3, ax4]:
     ax.set_yticks([])
 mpl.colorbar.ColorbarBase(ax5, cmap=myblue, orientation='vertical')
 ax5.set_yticks([0, .5, 1])
-ax5.set_yticklabels([round(vmin, 1), round(vmax * .5, 1), round(vmax, 1)])
+ax5.set_yticklabels([0, 1, 2])
 ax5.set_title("Bits")
 plt.savefig(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'figures' / 'sbs_context_info.png', dpi=600)
 
 
-
-
 ##dels
-vmax = np.max([np.max(np.max(del_five_p_averaged, axis=-1)), np.max(np.max(del_ref_averaged, axis=-1)), np.max(np.max(del_three_p_averaged, axis=-1))])
-vmin = np.min([np.min(np.min(del_five_p_averaged, axis=-1)), np.min(np.min(del_ref_averaged, axis=-1)), np.min(np.min(del_three_p_averaged, axis=-1))])
-myblue = make_colormap({vmin: '#ffffff', vmax * .5: '#4169E1', vmax: '#0a1842'})
-
 fig = plt.figure()
 fig.subplots_adjust(left=.056,
                     bottom=.06,
-                    right=.95,
+                    right=.965,
                     top=.94,
                     wspace=.1)
 gs = fig.add_gridspec(1, 4, width_ratios=[6, 6, 6, .5])
@@ -485,20 +481,16 @@ for ax in [ax2, ax3]:
     ax.set_yticks([])
 mpl.colorbar.ColorbarBase(ax4, cmap=myblue, orientation='vertical')
 ax4.set_yticks([0, .5, 1])
-ax4.set_yticklabels([round(vmin, 1), round(vmax * .5, 1), round(vmax, 1)])
+ax4.set_yticklabels([0, 1, 2])
 ax4.set_title("Bits")
 plt.savefig(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'figures' / 'del_context_info.png', dpi=600)
 
 
 ##ins
-vmax = np.max([np.max(np.max(ins_five_p_averaged, axis=-1)), np.max(np.max(ins_alt_averaged, axis=-1)), np.max(np.max(ins_three_p_averaged, axis=-1))])
-vmin = np.min([np.min(np.min(ins_five_p_averaged, axis=-1)), np.min(np.min(ins_alt_averaged, axis=-1)), np.min(np.min(ins_three_p_averaged, axis=-1))])
-myblue = make_colormap({vmin: '#ffffff', vmax * .5: '#4169E1', vmax: '#0a1842'})
-
 fig = plt.figure()
 fig.subplots_adjust(left=.056,
                     bottom=.06,
-                    right=.95,
+                    right=.965,
                     top=.94,
                     wspace=.1)
 gs = fig.add_gridspec(1, 4, width_ratios=[6, 6, 6, .5])
@@ -546,20 +538,6 @@ for ax in [ax2, ax3]:
     ax.set_yticks([])
 mpl.colorbar.ColorbarBase(ax4, cmap=myblue, orientation='vertical')
 ax4.set_yticks([0, .5, 1])
-ax4.set_yticklabels([0, round(vmax * .5, 1), round(vmax, 1)])
+ax4.set_yticklabels([0, 1, 2])
 ax4.set_title("Bits")
 plt.savefig(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'figures' / 'ins_context_info.png', dpi=600)
-
-
-
-
-
-##LIHC/LAML/LUAD/LUSC/OV/PAAD/TGCT poly C indels
-# import pylab as plt
-# for cancer in range(24):
-#     fig = plt.figure()
-#     cancer_attention = np.concatenate([i[:, cancer] for i in attention])
-#     plt.hist(cancer_attention, bins=100)
-#     plt.show()
-
-

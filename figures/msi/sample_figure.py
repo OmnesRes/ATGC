@@ -2,7 +2,6 @@ import numpy as np
 from scipy.stats import entropy
 from model.Sample_MIL import RaggedModels, InstanceModels
 import tensorflow as tf
-from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 from model import DatasetsUtils
 import pickle
 import pathlib
@@ -23,6 +22,7 @@ tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 D, tcga_maf, samples = pickle.load(open(cwd / 'figures' / 'msi' / 'data' / 'data.pkl', 'rb'))
 del tcga_maf
+fold = 4
 
 strand_emb_mat = np.concatenate([np.zeros(2)[np.newaxis, :], np.diag(np.ones(2))], axis=0)
 D['strand_emb'] = strand_emb_mat[D['strand']]
@@ -61,33 +61,26 @@ y_weights /= np.sum(y_weights)
 
 y_label_loader = DatasetsUtils.Map.FromNumpy(y_label, tf.float32)
 
-weights = pickle.load(open(cwd / 'figures' / 'msi' / 'results' / 'run.pkl', 'rb'))
+test_idx, weights = pickle.load(open(cwd / 'figures' / 'msi' / 'results' / 'run.pkl', 'rb'))
 
 sequence_encoder = InstanceModels.VariantSequence(20, 4, 2, [8, 8, 8, 8], fusion_dimension=128)
 mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[], heads=y_label.shape[-1], output_types=['other'], mil_hidden=(256, 128), attention_layers=[], dropout=.5, instance_dropout=.5, regularization=.2, input_dropout=dropout)
 
-test_idx = []
-predictions = []
-for run, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=9, shuffle=True, random_state=0).split(y_strat, y_strat)):
-    test_idx.append(idx_test)
-    mil.model.set_weights(weights[run])
-    ds_test = tf.data.Dataset.from_tensor_slices(((five_p_loader_eval(idx_test),
-                                           three_p_loader_eval(idx_test),
-                                           ref_loader_eval(idx_test),
-                                           alt_loader_eval(idx_test),
-                                           strand_loader_eval(idx_test),
-                                        ),
-                                       tf.gather(y_label, idx_test),
-                                       ))
-    ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
-
-    predictions.append(mil.model.predict(ds_test))
-
-    attention = mil.attention_model.predict(ds_test).numpy()
-    instances = mil.hidden_model.predict(ds_test).numpy()
-    aggregations = mil.aggregation_model.predict(ds_test)
-    prediction_probabilities = tf.nn.sigmoid(mil.model.predict(ds_test))
-    break
+idx_test = test_idx[fold]
+mil.model.set_weights(weights[fold])
+ds_test = tf.data.Dataset.from_tensor_slices(((five_p_loader_eval(idx_test),
+                                       three_p_loader_eval(idx_test),
+                                       ref_loader_eval(idx_test),
+                                       alt_loader_eval(idx_test),
+                                       strand_loader_eval(idx_test),
+                                    ),
+                                   tf.gather(y_label, idx_test),
+                                   ))
+ds_test = ds_test.batch(len(idx_test), drop_remainder=False)
+attention = mil.attention_model.predict(ds_test).numpy()
+instances = mil.hidden_model.predict(ds_test).numpy()
+aggregations = mil.aggregation_model.predict(ds_test)
+prediction_probabilities = tf.nn.sigmoid(mil.model.predict(ds_test))
 
 def make_colormap(colors):
     from matplotlib.colors import LinearSegmentedColormap, ColorConverter
@@ -110,15 +103,13 @@ def make_colormap(colors):
 
 
 ##sample heatmap
-
-aggregations = aggregations[:, 0, :]
-prediction = prediction_probabilities[:, 0].numpy()
-
-matrix = aggregations[np.argsort(prediction)[::-1]].T
+label = (samples.iloc[idx_test]['msi_status'] == 'high').astype(np.int32).values
+predictions = 1 - prediction_probabilities[:, 0].numpy()
+matrix = aggregations[:, 0, :][np.argsort(predictions)[::-1]].T
 z = np.exp(matrix - np.max(matrix, axis=1, keepdims=True))
 probabilities = z / np.sum(z, axis=1, keepdims=True)
 entropies = entropy(probabilities, axis=-1)
-matrix = matrix[entropies < np.percentile(entropies, 50)]
+matrix = matrix[entropies < np.percentile(entropies, 90)]
 
 Z = linkage(matrix, 'ward')
 dn = dendrogram(Z, leaf_rotation=90, leaf_font_size=8, color_threshold=1)
@@ -127,19 +118,22 @@ matrix = matrix[list(dn.values())[3]]
 vmax = np.percentile(matrix / np.sum(matrix, axis=-1, keepdims=True), 99)
 myblue = make_colormap({0: '#ffffff',
                         vmax * .01: '#e9eefc',
-                        vmax * .5:'#91a8ee',
+                        vmax * .5: '#91a8ee',
                         vmax: '#4169E1'})
 
-
 fig = plt.figure()
-fig.subplots_adjust(hspace=.03,
+fig.subplots_adjust(hspace=0,
                     left=.05,
                     right=.99,
-                    bottom=.06,
+                    bottom=.03,
                     top=.94)
-gs = fig.add_gridspec(2, 1, height_ratios=[25, 1])
+gs = fig.add_gridspec(5, 1, height_ratios=[25, 0, 1, 1, 1])
 ax1 = fig.add_subplot(gs[0, 0])
-ax2 = fig.add_subplot(gs[1, 0])
+ax2 = fig.add_subplot(gs[1, 0], zorder=-1000)
+ax3 = fig.add_subplot(gs[2, 0])
+ax4 = fig.add_subplot(gs[3, 0], zorder=-1000)
+ax5 = fig.add_subplot(gs[4, 0])
+
 figure_matrix = ax1.imshow(matrix / np.sum(matrix, axis=-1, keepdims=True),
                            cmap=myblue,
                            vmin=0,
@@ -148,21 +142,35 @@ figure_matrix = ax1.imshow(matrix / np.sum(matrix, axis=-1, keepdims=True),
                           interpolation='nearest')
 
 vmax = 1
+mycat = make_colormap({0: '#ffffff', vmax: '#000000'})
+prediction_matrix = ax5.imshow(label[np.argsort(predictions)[::-1]][np.newaxis, :],
+                           cmap=mycat,
+                           vmin=0,
+                           vmax=vmax,
+                           aspect='auto',
+                           interpolation='nearest')
+
+vmax = 1
 myblue = make_colormap({0: '#ffffff', vmax: '#4169E1'})
-prediction_matrix = ax2.imshow(prediction[np.argsort(prediction)[::-1]][np.newaxis, :],
+prediction_matrix = ax3.imshow(predictions[np.argsort(predictions)[::-1]][np.newaxis, :],
                            cmap=myblue,
                            vmin=0,
                            vmax=vmax,
                            aspect='auto',
                            interpolation='nearest')
 
-ax1.set_xticks([])
-ax1.set_yticks([])
-ax2.set_xticks([])
-ax2.set_yticks([])
+for ax in [ax1, ax2, ax3, ax4, ax5]:
+    ax.set_xticks([])
+    ax.set_yticks([])
+for ax in [ax2, ax4]:
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+
 ax1.set_ylabel('Features', fontsize=16)
 ax1.set_xlabel('Samples', fontsize=16)
 ax1.xaxis.set_label_position('top')
-ax2.set_xlabel('Model Certainty', fontsize=16)
-# plt.savefig(cwd / 'figures' / 'msi' / 'sample_figure.png', dpi=600)
-
+ax5.set_xlabel('MSI Status', fontsize=10, labelpad=2)
+ax3.set_xlabel('Model Probability', fontsize=10, labelpad=2)
+plt.savefig(cwd / 'figures' / 'msi' / 'sample_figure.png', dpi=600)

@@ -9,10 +9,10 @@ from model import DatasetsUtils
 import pickle
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
     import sys
     sys.path.append(str(cwd))
 
@@ -120,7 +120,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
 
     for run in range(3):
         gene_encoder = InstanceModels.Feature(shape=(gene_counts.shape[-1]), input_dropout=0, layer_dropouts=[.5], layers=[1052], regularization=.02)
-        mil = RaggedModels.MIL(instance_encoders=[], sample_encoders=[gene_encoder.model], output_dims=[y_label.shape[-1]], output_types=['other'], mil_hidden=[512], mode='none', dropout=.5)
+        mil = RaggedModels.MIL(instance_encoders=[], sample_encoders=[gene_encoder.model], output_dims=[y_label.shape[-1]], mil_hidden=[512], mode='none', dropout=.5)
         mil.model.compile(loss=losses,
                           metrics=[Metrics.CrossEntropy(), Metrics.Accuracy()],
                           weighted_metrics=[Metrics.CrossEntropy()],
