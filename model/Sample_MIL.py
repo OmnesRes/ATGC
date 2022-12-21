@@ -262,6 +262,7 @@ class RaggedModels:
 
                 if self.mode == 'attention':
                     if self.pooling == 'dynamic':
+                        ##only implemented for one attention head
                         pooling_1, ragged_attention_weights_1 = Ragged.Attention(pooling='mean', regularization=self.regularization, layers=self.attention_layers)(ragged_hidden[-1])
                         for index, i in enumerate(self.dynamic_hidden):
                             if index == 0:
