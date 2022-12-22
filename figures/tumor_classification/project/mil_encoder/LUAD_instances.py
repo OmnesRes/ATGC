@@ -77,10 +77,10 @@ y_weights /= np.sum(y_weights)
 y_label_loader = DatasetsUtils.Map.FromNumpy(y_label, tf.float32)
 y_weights_loader = DatasetsUtils.Map.FromNumpy(y_weights, tf.float32)
 
-
 test_idx, weights = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'context_weights.pkl', 'rb'))
 sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 16, 16], fusion_dimension=128)
 mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[], heads=y_label.shape[-1], output_dims=[y_label.shape[-1]], mil_hidden=[256], attention_layers=[], dropout=.5, instance_dropout=.5, regularization=0, input_dropout=.4)
+
 fold = 0
 mil.model.set_weights(weights[fold])
 idx_test = test_idx[fold]
@@ -102,7 +102,7 @@ attention = mil.attention_model.predict(ds_test).numpy()
 cancer_to_code = {cancer: index for index, cancer in enumerate(A.cat.categories)}
 
 
-cancer = 'SKCM'
+cancer = 'LUAD'
 ##
 test_indexes = [np.where(D['sample_idx'] == idx) for idx in samples.iloc[idx_test].index]
 indexes = [np.where(D['sample_idx'] == idx) for idx in samples.iloc[idx_test].loc[samples.iloc[idx_test]['type'] == cancer].index]
@@ -156,6 +156,7 @@ Z = linkage(submatrix, 'ward')
 dn = dendrogram(Z, leaf_rotation=90, leaf_font_size=8, color_threshold=.8)
 submatrix = submatrix[list(dn.values())[3]]
 label = kmeans.labels_[subsample][np.argsort(labels[subsample])]
+
 
 
 def make_colormap(colors):
@@ -238,13 +239,16 @@ sns.violinplot(
     y=labels,
     ax=ax5,
     order=np.arange(clusters)[np.argsort([np.median([i for i, j in zip(instance_attention, labels) if j == k]) for k in np.arange(clusters)])][::-1],
+
     palette={0: '#d53e4f',
-               1: '#f46d43',
-               2: '#fdae61',
-               3: '#fee08b',
-               4: '#abdda4',
-               5: '#3288bd'},
+           1: '#f46d43',
+           2: '#fdae61',
+           3: '#fee08b',
+           4: '#abdda4',
+           5: '#3288bd'},
     orient='h')
+
+
 for ax in [ax1, ax2, ax3, ax4, ax5]:
     ax.set_xticks([])
     ax.set_yticks([])
@@ -258,8 +262,8 @@ ax5.spines['top'].set_visible(False)
 ax5.spines['right'].set_visible(False)
 ax5.spines['left'].set_visible(False)
 ax5.spines['bottom'].set_visible(False)
-ax5.set_xlim(np.percentile(instance_attention, .1), np.max(instance_attention))
-plt.savefig(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'figures' / 'SKCM_instances.png', dpi=600)
+ax5.set_xlim(np.percentile(instance_attention, .01), np.percentile(instance_attention, 99.9))
+plt.savefig(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'figures' / 'LUAD_instances.png', dpi=600)
 
 
 
@@ -404,14 +408,12 @@ del_mask = [j == '-' for i, j in zip(refs, alts)]
 ins_mask = [i == '-' for i, j in zip(refs, alts)]
 
 ##cluster logos
-
 for index, cluster in enumerate(np.arange(clusters)[np.argsort([np.median([i for i, j in zip(instance_attention, kmeans.labels_) if j == k]) for k in np.arange(clusters)])][::-1]):
     sbs_count = len([i for i, j in zip(sbs_mask, kmeans.labels_) if (i and j == cluster)])
     dbs_count = len([i for i, j in zip(dbs_mask, kmeans.labels_) if (i and j == cluster)])
     del_count = len([i for i, j in zip(del_mask, kmeans.labels_) if (i and j == cluster)])
     ins_count = len([i for i, j in zip(ins_mask, kmeans.labels_) if (i and j == cluster)])
     print(cluster, [sbs_count, dbs_count, del_count, ins_count])
-
     fig = plt.figure()
     fig.subplots_adjust(left=.07,
                         right=1,
@@ -507,5 +509,42 @@ for index, cluster in enumerate(np.arange(clusters)[np.argsort([np.median([i for
         ax1.set_ylabel("Bits", fontsize=12)
         ax2.text(1.8, -.45, '>', fontsize=12)
 
-    plt.savefig(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'figures' / ('SKCM_cluster_' + str(index) + '.pdf'))
+    if np.argmax([sbs_count, dbs_count, del_count, ins_count]) == 2:
+        del_ref_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([(i + '-----')[:6] for i, j, k in zip(ref_seqs, del_mask, kmeans.labels_) if (j and k == cluster)])
+        del_ref_matrix = lm.transform_matrix(del_ref_matrix.fillna(0), from_type='counts', to_type='probability')
+        del_five_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([i for i, j, k in zip(five_p_seqs, del_mask, kmeans.labels_) if (j and k == cluster)])
+        del_five_p_matrix = lm.transform_matrix(del_five_p_matrix.fillna(0), from_type='counts', to_type='probability')
+        del_three_p_matrix = pd.DataFrame(data={'A': np.repeat(0, 6), 'C': np.repeat(0, 6), 'G': np.repeat(0, 6), 'T': np.repeat(0, 6)}) + lm.alignment_to_matrix([i for i, j, k in zip(three_p_seqs, del_mask, kmeans.labels_) if (j and k == cluster)])
+        del_three_p_matrix = lm.transform_matrix(del_three_p_matrix.fillna(0), from_type='counts', to_type='probability')
+        fig.subplots_adjust(
+                            wspace=.03
+                            )
+        gs = fig.add_gridspec(1, 3, width_ratios=[1, 1, 1])
+        ax1 = fig.add_subplot(gs[0, 0])
+        ax2 = fig.add_subplot(gs[0, 1])
+        ax3 = fig.add_subplot(gs[0, 2])
+        lm.Logo(lm.transform_matrix(del_five_p_matrix, from_type='probability', to_type='information', background=weighted_del_background_five_p_matrix), ax=ax1, color_scheme='classic')
+        lm.Logo(lm.transform_matrix(del_ref_matrix, from_type='probability', to_type='information', background=weighted_del_background_ref_matrix), ax=ax2, color_scheme='classic')
+        lm.Logo(lm.transform_matrix(del_three_p_matrix, from_type='probability', to_type='information', background=weighted_del_background_three_p_matrix), ax=ax3, color_scheme='classic')
+        for ax in [ax1, ax2, ax3]:
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+            ax.spines['bottom'].set_visible(False)
+            ax.set_ylim(0, 2.2)
+            ax.tick_params(axis='x', length=0, width=0, labelsize=8)
+        ax1.tick_params(axis='y', length=0, width=0, labelsize=8)
+        for ax in [ax2, ax3]:
+            ax.set_yticks([])
+        ax1.set_xticks(list(range(6)))
+        ax1.set_xticklabels([-6, -5, -4, -3, -2, -1])
+        ax2.set_xticks([])
+        ax3.set_xticks(list(range(6)))
+        ax3.set_xticklabels(['+1', '+2', '+3', '+4', '+5', '+6'])
+        ax1.set_xlabel("Five prime", fontsize=12)
+        ax2.set_xlabel("Ref", fontsize=12, labelpad=17)
+        ax3.set_xlabel("Three prime", fontsize=12)
+        ax1.set_ylabel("Bits", fontsize=12)
+
+    plt.savefig(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'figures' / ('LUAD_cluster_' + str(index) + '.pdf'))
 
