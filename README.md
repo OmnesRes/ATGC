@@ -1,1 +1,1 @@
-This branch is undergoing significant revisions.
+Revision branch for "method_paper".
