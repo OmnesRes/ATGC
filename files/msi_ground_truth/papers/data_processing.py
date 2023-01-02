@@ -2,10 +2,10 @@ import pandas as pd
 import pickle
 import pathlib
 path = pathlib.Path.cwd()
-if path.stem == 'ATGC2':
+if path.stem == 'ATGC':
     cwd = path
 else:
-    cwd = list(path.parents)[::-1][path.parts.index('ATGC2')]
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
 
 ##get the coad msi data
 coad_msi = pd.read_csv(cwd / 'files' / 'msi_ground_truth' / 'papers' / '2011-11-14592C-Sup Table 1.csv', sep='\t', low_memory=False, usecols=['patient', 'MSI_status'])
