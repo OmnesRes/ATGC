@@ -290,7 +290,6 @@ class RaggedModels:
 
                 aggregation = pooled_hidden[-1]
 
-
                 if self.mode == 'none': #assumes you need a newaxis
                     pooled_hidden = [pooled_hidden[-1][:, tf.newaxis, :]]
                     assert self.heads == 1

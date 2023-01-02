@@ -27,7 +27,7 @@ class Embed(tf.keras.layers.Layer):
 
     def build(self, input_shape):
         if self.input_dimension:
-            self.embedding_matrix = self.add_weight(shape=[self.input_dimension, self.embedding_dimension], initializer='uniform', trainable=self.trainable, dtype=tf.float32, regularizer=tf.keras.regularizers.l1(self.regularization))
+            self.embedding_matrix = self.add_weight(shape=[self.input_dimension, self.embedding_dimension], initializer='uniform', trainable=self.trainable, dtype=tf.float32, regularizer=tf.keras.regularizers.l2(self.regularization))
         else:
             self.embedding_matrix = self.add_weight(shape=[self.embedding_dimension, self.embedding_dimension], initializer=tf.keras.initializers.identity(), trainable=self.trainable, dtype=tf.float32)
 
