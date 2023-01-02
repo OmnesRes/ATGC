@@ -6,8 +6,8 @@ from model.KerasLayers import Losses, Metrics
 from model import DatasetsUtils
 from sklearn.metrics import precision_score, recall_score, average_precision_score, classification_report
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[-2], True)
-tf.config.experimental.set_visible_devices(physical_devices[-2], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-1], True)
+tf.config.experimental.set_visible_devices(physical_devices[-1], 'GPU')
 
 import pathlib
 path = pathlib.Path.cwd()
@@ -69,7 +69,7 @@ all_latents = []
 
 ##stratified K fold for test
 sequence_encoder = InstanceModels.VariantSequence(20, 4, 2, [8, 8, 8, 8], fusion_dimension=128)
-mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[], heads=y_label.shape[-1], output_types=['other'], mil_hidden=(256, 128), attention_layers=[], dropout=.5, instance_dropout=.5, regularization=.2, input_dropout=dropout)
+mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[], heads=y_label.shape[-1], mil_hidden=(256, 128), attention_layers=[], dropout=.5, instance_dropout=.5, regularization=.2, input_dropout=dropout)
 mil.model.compile(loss=losses,
                   metrics=[Metrics.BinaryCrossEntropy(from_logits=True), 'accuracy'],
                   optimizer=tf.keras.optimizers.Adam(learning_rate=0.001))
@@ -89,7 +89,7 @@ for weight, idx_test in zip(weights, test_idx):
     predictions.append(mil.model.predict(ds_test))
     attention = np.concatenate([i[:, 0] for i in mil.attention_model.predict(ds_test).numpy()])
     test_indexes = np.concatenate(np.array([np.where(D['sample_idx'] == i)[0] for i in samples.index], dtype='object')[idx_test], axis=-1)
-    labels_repeats = D['repeat'][test_indexes] == 1
+    labels_repeats = D['repeat'][test_indexes] > 0
     repeats = attention[labels_repeats]
     non_repeats = attention[~labels_repeats]
     all_latents.append([non_repeats, repeats])

@@ -1,5 +1,7 @@
+import matplotlib
+matplotlib.use('TKAgg')
+from matplotlib import pyplot as plt
 import pickle
-import pylab as plt
 import seaborn as sns
 import pathlib
 path = pathlib.Path.cwd()
@@ -23,8 +25,8 @@ ax1 = fig.add_subplot(211)
 ax2 = fig.add_subplot(212)
 fig.subplots_adjust(top=0.975,
 bottom=0.045,
-left=0.11,
-right=0.98,
+left=0.078,
+right=0.993,
 hspace=0.14,
 wspace=0.04)
 sns.kdeplot(non_repeats.flatten(), shade=True, gridsize=300, ax=ax1, alpha=1)
