@@ -19,20 +19,24 @@ else:
     sys.path.append(str(cwd))
 
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[-2], True)
-tf.config.experimental.set_visible_devices(physical_devices[-2], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-3], True)
+tf.config.experimental.set_visible_devices(physical_devices[-3], 'GPU')
 
 D, tcga_maf, samples = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'data' / 'data.pkl', 'rb'))
-tcga_maf = tcga_maf.loc[:, ['Tumor_Sample_Barcode', 'contexts']]
+tcga_maf = tcga_maf.loc[:, ['Tumor_Sample_Barcode', 'genome_position']]
 
-context_df = tcga_maf.groupby(['Tumor_Sample_Barcode', "contexts"]).size().unstack(fill_value=0)
-context_df = pd.DataFrame.from_dict({'Tumor_Sample_Barcode': context_df.index, 'context_counts': context_df.values.tolist()})
+
+bin_size = 3095677412 // 3000
+
+tcga_maf['bin'] = tcga_maf['genome_position'] // bin_size
+bin_df = tcga_maf.groupby(['Tumor_Sample_Barcode', "bin"]).size().unstack(fill_value=0)
+bin_df = pd.DataFrame.from_dict({'Tumor_Sample_Barcode': bin_df.index, 'bin_counts': bin_df.values.tolist()})
 
 samples['type'] = samples['type'].apply(lambda x: 'COAD' if x == 'READ' else x)
 class_counts = dict(samples['type'].value_counts())
 labels_to_use = [i for i in class_counts if class_counts[i] > 125]
 samples = samples.loc[samples['type'].isin(labels_to_use)]
-samples = pd.merge(samples, context_df, on='Tumor_Sample_Barcode', how='left')
+samples = pd.merge(samples, bin_df, on='Tumor_Sample_Barcode', how='left')
 
 A = samples['type'].astype('category')
 classes = A.cat.categories.values
@@ -43,16 +47,16 @@ y_strat = np.argmax(y_label, axis=-1)
 class_counts = dict(zip(*np.unique(y_strat, return_counts=True)))
 y_weights = np.array([1 / class_counts[_] for _ in y_strat])
 y_weights /= np.sum(y_weights)
-context_counts = np.apply_along_axis(lambda x: np.log(x + 1), 0, np.stack(samples['context_counts'].values))
 
-contexts_loader = DatasetsUtils.Map.FromNumpy(context_counts, tf.float32)
+bin_counts = np.apply_along_axis(lambda x: np.log(x + 1), 0, np.stack(samples['bin_counts'].values))
+
+bin_loader = DatasetsUtils.Map.FromNumpy(bin_counts, tf.float32)
 y_label_loader = DatasetsUtils.Map.FromNumpy(y_label, tf.float32)
 y_weights_loader = DatasetsUtils.Map.FromNumpy(y_weights, tf.float32)
 
-
 dim_learning_rate = Real(low=1e-4, high=1e-2, prior='log-uniform', name='learning_rate')
 dim_weight_decay = Real(low=1e-3, high=0.5, prior = 'log-uniform', name='weight_decay')
-dim_num_dense_layers = Integer(low=0, high=5, name='num_dense_layers')
+dim_num_dense_layers = Integer(low=0, high = 5, name='num_dense_layers')
 dim_num_dense_nodes = Integer(low=5, high=1024, name='num_dense_nodes')
 dim_activation = Categorical(categories=['relu', 'softplus'], name='activation')
 dim_dropout = Real(low=1e-6, high=0.5, prior='log-uniform', name='dropout')
@@ -65,7 +69,7 @@ losses = [Losses.CrossEntropy()]
 def create_model(learning_rate, weight_decay, dropout, num_dense_layers, num_dense_nodes, activation):
     ###Define model here
     model = tf.keras.Sequential()
-    model.add(tf.keras.layers.InputLayer(input_shape=(97,)))
+    model.add(tf.keras.layers.InputLayer(input_shape=(bin_counts.shape[-1],)))
     for i in range(num_dense_layers):
         name = 'layer_dense_{0}'.format(i+1)
         model.add(tf.keras.layers.Dense(num_dense_nodes, activation=activation, name=name, kernel_regularizer=tf.keras.regularizers.l2(weight_decay)))
@@ -119,7 +123,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
     ds_train = tf.data.Dataset.from_tensor_slices((idx_train, y_strat[idx_train]))
     ds_train = ds_train.apply(DatasetsUtils.Apply.StratifiedMinibatch(batch_size=batch_size, ds_size=len(idx_train)))
     ds_train = ds_train.map(lambda x: ((
-                                          contexts_loader(x),
+                                          bin_loader(x),
                                            ),
                                           (
                                           y_label_loader(x),
@@ -130,7 +134,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
 
     ds_valid = tf.data.Dataset.from_tensor_slices((
                                                   (
-                                                   context_counts[idx_valid],
+                                                   bin_counts[idx_valid],
                                                    ),
                                                   (
                                                    y_label[idx_valid],
@@ -141,7 +145,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
 
     ds_test = tf.data.Dataset.from_tensor_slices((
                                                  (
-                                                  context_counts[idx_test],
+                                                  bin_counts[idx_test],
                                                  ),
                                                  (
                                                   y_label[idx_test],
@@ -166,7 +170,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
     model_weights.append(run_weights[-1])
 
 
-with open(cwd / 'figures' / 'tumor_classification' / 'project' / 'neural_net' / 'results' / 'context_weights.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'tumor_classification' / 'project' / 'neural_net' / 'results' / 'bin_weights.pkl', 'wb') as f:
     pickle.dump([test_idx, model_weights, parameters], f)
 
 P = np.concatenate(predictions)
@@ -174,40 +178,13 @@ P = np.concatenate(predictions)
 z = np.exp(P - np.max(P, axis=1, keepdims=True))
 predictions = z / np.sum(z, axis=1, keepdims=True)
 
-with open(cwd / 'figures' / 'tumor_classification' / 'project' / 'neural_net' / 'results' / 'context_predictions.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'tumor_classification' / 'project' / 'neural_net' / 'results' / 'bin_predictions.pkl', 'wb') as f:
     pickle.dump([test_idx, predictions], f)
 
 print(np.sum((np.argmax(predictions, axis=-1) == np.argmax(y_label[np.concatenate(test_idx)], axis=-1)) * y_weights[np.concatenate(test_idx)]))
 print(sum(np.argmax(predictions, axis=-1) == np.argmax(y_label[np.concatenate(test_idx)], axis=-1)) / len(y_label))
 print(roc_auc_score(np.argmax(y_label[np.concatenate(test_idx)], axis=-1), predictions, multi_class='ovr'))
 
-# 0.5269553129679649
-# 0.5078911132295307
-# 0.9357473407903015
-#
-# [[0.0003881905316240255,
-#   0.0034309669579154767,
-#   0.49999999999999994,
-#   2,
-#   765,
-#   'relu'],
-#  [0.0001, 0.001, 0.49999999999999994, 3, 906, 'relu'],
-#  [0.0005031121783809842,
-#   0.0025395326570444607,
-#   0.49999999999999994,
-#   2,
-#   151,
-#   'relu'],
-#  [0.0012989124366494852,
-#   0.007625450863575923,
-#   0.49999999999999994,
-#   2,
-#   1024,
-#   'relu'],
-#  [0.0012331224354759536,
-#   0.02926102482886051,
-#   9.851079928429338e-05,
-#   1,
-#   313,
-#   'relu']]
-
+# 0.4833778077302324
+# 0.504395720792289
+# 0.9134861606509762

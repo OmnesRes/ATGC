@@ -88,7 +88,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=10, random_state=0, shuffle=
         mil.model.compile(loss=losses,
                           metrics=[Metrics.CrossEntropy(), Metrics.Accuracy()],
                           weighted_metrics=[Metrics.CrossEntropy()],
-                          optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=0.0001,
+                          optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001,
                                                              ))
 
         mil.model.fit(ds_train,
@@ -105,7 +105,7 @@ for idx_train, idx_test in StratifiedKFold(n_splits=10, random_state=0, shuffle=
 
     weights.append(run_weights)
 
-
+#previously called dynamic
 with open(cwd / 'figures' / 'tumor_classification' / 'pcawg' / 'mil_encoder' / 'results' / 'context_weights.pkl', 'wb') as f:
     pickle.dump([test_idx, weights], f)
 
@@ -131,7 +131,7 @@ P = np.concatenate(predictions)
 #convert the model logits to probablities
 z = np.exp(P - np.max(P, axis=1, keepdims=True))
 predictions = z / np.sum(z, axis=1, keepdims=True)
-#
+#previously called dynamic
 with open(cwd / 'figures' / 'tumor_classification' / 'pcawg' / 'mil_encoder' / 'results' / 'context_predictions.pkl', 'wb') as f:
     pickle.dump([predictions, y_label, test_idx], f)
 
