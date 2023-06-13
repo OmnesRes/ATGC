@@ -189,7 +189,9 @@ class RaggedModels:
                      dropout=0,
                      instance_dropout=0,
                      input_dropout=False,
-                     heads=1):
+                     heads=1,
+                     weight_decay=0,
+                     sample_dropout=0):
             self.instance_encoders,\
             self.sample_encoders,\
             self.instance_layers,\
@@ -205,7 +207,9 @@ class RaggedModels:
             self.dropout,\
             self.instance_dropout,\
             self.input_dropout,\
-            self.heads = instance_encoders,\
+            self.heads,\
+            self.weight_decay, \
+            self.sample_dropout = instance_encoders,\
                          sample_encoders,\
                          instance_layers,\
                          output_dims,\
@@ -220,7 +224,9 @@ class RaggedModels:
                          dropout,\
                          instance_dropout,\
                          input_dropout,\
-                         heads
+                         heads,\
+                         weight_decay, \
+                         sample_dropout
 
             if self.output_names == []:
                 self.output_names = ['output_' + str(index) for index, i in enumerate(self.output_dims)]
@@ -262,14 +268,13 @@ class RaggedModels:
 
                 if self.mode == 'attention':
                     if self.pooling == 'dynamic':
-                        ##only implemented for one attention head
                         pooling_1, ragged_attention_weights_1 = Ragged.Attention(pooling='mean', regularization=self.regularization, layers=self.attention_layers)(ragged_hidden[-1])
                         for index, i in enumerate(self.dynamic_hidden):
                             if index == 0:
                                 instance_ragged_fused = [Ragged.Dense(units=i, activation=tf.keras.activations.relu)((ragged_hidden[-1], pooling_1[:, 0, :]))]
                             else:
                                 instance_ragged_fused.append(Ragged.MapFlatValues(tf.keras.layers.Dense(units=i, activation=tf.keras.activations.relu))(instance_ragged_fused[-1]))
-                        pooling_2, ragged_attention_weights = Ragged.Attention(pooling='dynamic', regularization=self.regularization, layers=self.attention_layers)([ragged_hidden[-1], instance_ragged_fused[-1]])
+                        pooling_2, ragged_attention_weights = Ragged.Attention(pooling='dynamic', regularization=self.regularization, layers=self.attention_layers, heads=self.heads)([ragged_hidden[-1], instance_ragged_fused[-1]])
                         pooled_hidden = [pooling_2]
                     else:
                         pooling, ragged_attention_weights = Ragged.Attention(pooling=self.pooling, regularization=self.regularization, layers=self.attention_layers, heads=self.heads)(ragged_hidden[-1])
@@ -307,32 +312,41 @@ class RaggedModels:
             else:
                 fused = [pooled_hidden[-1]]
 
+            if self.sample_dropout:
+                fused = [tf.keras.layers.Dropout(self.sample_dropout)(fused[-1])]
+
             head_networks = [[fused[-1][:, head, :]] for head in range(self.heads)]
 
             for i in self.mil_hidden:
                 for head in range(self.heads):
-                    head_networks[head].append(tf.keras.layers.Dense(units=i, activation='relu')(head_networks[head][-1]))
+                    head_networks[head].append(tf.keras.layers.Dense(units=i, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(self.weight_decay))(head_networks[head][-1]))
                     if self.dropout:
                         head_networks[head].append(tf.keras.layers.Dropout(self.dropout)(head_networks[head][-1]))
 
             output_tensors = []
             for output_dim, output_name in zip(self.output_dims, self.output_names):
                 if self.heads == 1:
-                    head_networks[0].append(tf.keras.layers.Dense(units=output_dim, activation=None)(head_networks[0][-1]))
+                    head_networks[0].append(tf.keras.layers.Dense(units=output_dim, activation=None, kernel_regularizer=tf.keras.regularizers.l2(self.weight_decay))(head_networks[0][-1]))
                     output_tensors.append(head_networks[0][-1])
                 else:
                     for head in range(self.heads):
-                        head_networks[head].append(tf.keras.layers.Dense(units=1, activation=None)(head_networks[head][-1]))
+                        head_networks[head].append(tf.keras.layers.Dense(units=1, activation=None, kernel_regularizer=tf.keras.regularizers.l2(self.weight_decay))(head_networks[head][-1]))
                     if self.heads == output_dim:
                         output_tensors.append(tf.concat([i[-1] for i in head_networks], axis=-1))
                     else:
-                        output_tensors.append(tf.keras.layers.Dense(units=output_dim, activation=None)(tf.concat([i[-1] for i in head_networks], axis=-1)))
+                        output_tensors.append(tf.keras.layers.Dense(units=output_dim, activation=None, kernel_regularizer=tf.keras.regularizers.l2(self.weight_decay))(tf.concat([i[-1] for i in head_networks], axis=-1)))
 
             self.model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=output_tensors)
             self.fused_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[fused[-1]])
             if self.instance_encoders != []:
                 self.hidden_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[ragged_hidden[-1]])
+            if self.sample_encoders != []:
+                self.sample_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=sample_fused)
             if self.mode == 'attention':
                 self.attention_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[ragged_attention_weights])
                 self.aggregation_model = tf.keras.Model(inputs=ragged_inputs + sample_inputs, outputs=[aggregation])
+
+
+
+
 
