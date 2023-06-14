@@ -16,8 +16,8 @@ else:
     sys.path.append(str(cwd))
 
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[-6], True)
-tf.config.experimental.set_visible_devices(physical_devices[-6], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-4], True)
+tf.config.experimental.set_visible_devices(physical_devices[-4], 'GPU')
 
 D, tcga_maf, samples = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'data' / 'data.pkl', 'rb'))
 tcga_maf['Hugo_Symbol'] = tcga_maf['Hugo_Symbol'].astype('category')
@@ -26,15 +26,27 @@ class_counts = dict(samples['type'].value_counts())
 labels_to_use = [i for i in class_counts if class_counts[i] > 125]
 samples = samples.loc[samples['type'].isin(labels_to_use)]
 
-D['genes'] = np.concatenate(tcga_maf[['Hugo_Symbol']].apply(lambda x: x.cat.codes).values + 1)
+##bin position
+def get_bins(pos):
+    ##first normalize genome position
+    pos = pos / 3095677412
+    one_pos = int(pos * 100)
+    return one_pos, int(((pos * 100) - one_pos) * 100)
 
-input_dim = max(D['genes'])
-dropout = 0
+result = np.apply_along_axis(get_bins, -1, tcga_maf['genome_position'].values[:, np.newaxis])
+D['bin_1'] = result[:, 0] + 1
+D['bin_2'] = result[:, 1] + 1
+
+bins = [100, 100]
+dropout = .5
 indexes = [np.where(D['sample_idx'] == idx) for idx in samples.index]
-genes = np.array([D['genes'][i] for i in indexes], dtype='object')
+bin_1 = np.array([D['bin_1'][i] for i in indexes], dtype='object')
+bin_2 = np.array([D['bin_2'][i] for i in indexes], dtype='object')
 index_loader = DatasetsUtils.Map.FromNumpytoIndices([j for i in indexes for j in i], dropout=dropout)
-genes_loader = DatasetsUtils.Map.FromNumpyandIndices(genes, tf.int16)
-genes_loader_eval = DatasetsUtils.Map.FromNumpy(genes, tf.int16, dropout=0)
+bin_1_loader = DatasetsUtils.Map.FromNumpyandIndices(bin_1, tf.int16)
+bin_1_loader_eval = DatasetsUtils.Map.FromNumpy(bin_1, tf.int16, dropout=0)
+bin_2_loader = DatasetsUtils.Map.FromNumpyandIndices(bin_2, tf.int16)
+bin_2_loader_eval = DatasetsUtils.Map.FromNumpy(bin_2, tf.int16, dropout=0)
 
 A = samples['type'].astype('category')
 classes = A.cat.categories.values
@@ -64,29 +76,33 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
 
         ds_train = ds_train.map(lambda x: ((index_loader(x),)),)
 
-        ds_train = ds_train.map(lambda x: ((genes_loader(x[0], x[1]),), (y_label_loader(x[0]),), y_weights_loader(x[0])),)
+        ds_train = ds_train.map(lambda x: ((bin_1_loader(x[0], x[1]),
+                                            bin_2_loader(x[0], x[1])),
+                                           (y_label_loader(x[0]),),
+                                           y_weights_loader(x[0])),)
 
         ds_train.prefetch(1)
         ds_valid = tf.data.Dataset.from_tensor_slices(((
-                                               genes_loader_eval(idx_valid),
+                                               bin_1_loader_eval(idx_valid),
+                                               bin_2_loader_eval(idx_valid)
                                            ),
                                             (
                                                 tf.gather(y_label, idx_valid),
                                             ),
                                             tf.gather(y_weights, idx_valid)
                                             ))
-        ds_valid = ds_valid.batch(len(idx_valid), drop_remainder=False)
+        ds_valid = ds_valid.batch(512, drop_remainder=False)
 
     losses = [Losses.CrossEntropy()]
 
     for i in range(3):
-        gene_encoder = InstanceModels.GeneEmbed(shape=(), input_dim=input_dim, dim=128)
-        mil = RaggedModels.MIL(instance_encoders=[gene_encoder.model], sample_encoders=[], heads=y_label.shape[-1], output_dims=[y_label.shape[-1]], mil_hidden=[], attention_layers=[], instance_dropout=0, regularization=0, input_dropout=dropout, weight_decay=.0005)
+        pos_encoder = InstanceModels.VariantBin(bins=bins, layers=[256])
+        mil = RaggedModels.MIL(instance_encoders=[pos_encoder.model], sample_encoders=[], heads=y_label.shape[-1], output_dims=[y_label.shape[-1]], mil_hidden=[128], dropout=.5, attention_layers=[], instance_dropout=.5, regularization=0, input_dropout=dropout)
 
         mil.model.compile(loss=losses,
                           metrics=[Metrics.CrossEntropy(), Metrics.Accuracy()],
                           weighted_metrics=[Metrics.CrossEntropy()],
-                          optimizer=tf.keras.optimizers.Adam(learning_rate=0.001,
+                          optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=0.001,
                                                              ))
 
         mil.model.fit(ds_train,
@@ -105,14 +121,16 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
     weights.append(run_weights)
 
 
-with open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'gene_weights2.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'bin_weights.pkl', 'wb') as f:
     pickle.dump([test_idx, weights], f)
 
 
 for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_strat, y_strat)):
     mil.model.set_weights(weights[index])
     ds_test = tf.data.Dataset.from_tensor_slices(((
-                                               genes_loader_eval(idx_test),
+                                               bin_1_loader_eval(idx_test),
+                                               bin_2_loader_eval(idx_test)
+
                                            ),
                                             (
                                                 tf.gather(y_label, idx_test),
@@ -128,13 +146,14 @@ P = np.concatenate(predictions)
 z = np.exp(P - np.max(P, axis=1, keepdims=True))
 predictions = z / np.sum(z, axis=1, keepdims=True)
 
-with open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'gene_predictions2.pkl', 'wb') as f:
+with open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'bin_predictions.pkl', 'wb') as f:
     pickle.dump([predictions, y_label, test_idx], f)
 
 print(np.sum((np.argmax(predictions, axis=-1) == np.argmax(y_label[np.concatenate(test_idx)], axis=-1)) * y_weights[np.concatenate(test_idx)]))
 print(sum(np.argmax(predictions, axis=-1) == np.argmax(y_label[np.concatenate(test_idx)], axis=-1)) / len(y_label))
 print(roc_auc_score(np.argmax(y_label[np.concatenate(test_idx)], axis=-1), predictions, multi_class='ovr'))
 
-# 0.5745879310108637
-# 0.6042792077110476
-# 0.9398707045383689
+#genes
+# 0.5484192390049147
+# 0.5911450058256541
+# 0.931317848034582

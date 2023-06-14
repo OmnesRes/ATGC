@@ -20,7 +20,6 @@ tf.config.experimental.set_memory_growth(physical_devices[-4], True)
 tf.config.experimental.set_visible_devices(physical_devices[-4], 'GPU')
 
 D, tcga_maf, samples = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'data' / 'data.pkl', 'rb'))
-tcga_maf['Hugo_Symbol'] = tcga_maf['Hugo_Symbol'].astype('category')
 samples['type'] = samples['type'].apply(lambda x: 'COAD' if x == 'READ' else x)
 class_counts = dict(samples['type'].value_counts())
 labels_to_use = [i for i in class_counts if class_counts[i] > 125]

@@ -10,7 +10,9 @@ else:
     import sys
     sys.path.append(str(cwd))
 
-predictions, y_label, test_idx = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'project' / 'neural_net' / 'results' / 'gene_predictions.pkl', 'rb'))
+predictions, y_label, test_idx = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'gene_predictions.pkl', 'rb'))
+
+test_idx, predictions = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'project' / 'neural_net' / 'results' / 'gene_predictions.pkl', 'rb'))
 y_label = np.argmax(y_label, axis=-1)
 class_counts = dict(zip(*np.unique(y_label, return_counts=True)))
 y_weights = np.array([1 / class_counts[_] for _ in y_label])
@@ -22,9 +24,9 @@ print(np.sum((np.argmax(predictions, axis=-1) == y_label[np.concatenate(test_idx
 print(sum(np.argmax(predictions, axis=-1) == y_label[np.concatenate(test_idx)]) / len(y_label))
 print(roc_auc_score(y_label[np.concatenate(test_idx)], predictions, multi_class='ovr'))
 
-# 0.5333120820875511
-# 0.5600042368393179
-# 0.9291161423827727
+# 0.5257284609464159
+# 0.5555555555555556
+# 0.92897640353388
 
 recalls = recall_score(y_label[np.concatenate(test_idx)], np.argmax(predictions, axis=-1), average=None)
 precisions = precision_score(y_label[np.concatenate(test_idx)], np.argmax(predictions, axis=-1), average=None)
@@ -39,9 +41,9 @@ print(np.sum((np.argmax(predictions, axis=-1) == y_label[np.concatenate(test_idx
 print(sum(np.argmax(predictions, axis=-1) == y_label[np.concatenate(test_idx)]) / len(y_label))
 print(roc_auc_score(y_label[np.concatenate(test_idx)], predictions, multi_class='ovr'))
 
-# 0.5145933693273526
-# 0.4987819086961127
-# 0.9337750272141737
+# 0.5269553129679649
+# 0.5078911132295307
+# 0.9357473407903015
 
 recalls = recall_score(y_label[np.concatenate(test_idx)], np.argmax(predictions, axis=-1), average=None)
 precisions = precision_score(y_label[np.concatenate(test_idx)], np.argmax(predictions, axis=-1), average=None)

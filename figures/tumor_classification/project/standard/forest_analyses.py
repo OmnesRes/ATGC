@@ -21,9 +21,9 @@ print(np.sum((np.argmax(np.concatenate(predictions), axis=-1) == y_label[np.conc
 print(sum(np.argmax(np.concatenate(predictions), axis=-1) == y_label[np.concatenate(test_idx)]) / len(y_label))
 print(roc_auc_score(y_label[np.concatenate(test_idx)], np.concatenate(predictions), multi_class='ovr'))
 
-# 0.48656468994436153
-# 0.5010062493379939
-# 0.9252687138345195
+# 0.48820274881925424
+# 0.502065459167461
+# 0.9254318189402074
 
 recalls = recall_score(y_label[np.concatenate(test_idx)], (np.argmax(np.concatenate(predictions), axis=-1)), average=None)
 precisions = precision_score(y_label[np.concatenate(test_idx)], (np.argmax(np.concatenate(predictions), axis=-1)), average=None)
@@ -38,9 +38,9 @@ print(np.sum((np.argmax(np.concatenate(predictions), axis=-1) == y_label[np.conc
 print(sum(np.argmax(np.concatenate(predictions), axis=-1) == y_label[np.concatenate(test_idx)]) / len(y_label))
 print(roc_auc_score(y_label[np.concatenate(test_idx)], np.concatenate(predictions), multi_class='ovr'))
 
-# 0.4165950169416204
-# 0.4851181018959856
-# 0.898216458794835
+# 0.41793151209519097
+# 0.4863891536913463
+# 0.8982620207071613
 
 recalls = recall_score(y_label[np.concatenate(test_idx)], (np.argmax(np.concatenate(predictions), axis=-1)), average=None)
 precisions = precision_score(y_label[np.concatenate(test_idx)], (np.argmax(np.concatenate(predictions), axis=-1)), average=None)
