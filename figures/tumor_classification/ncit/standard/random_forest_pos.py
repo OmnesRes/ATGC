@@ -1,0 +1,95 @@
+import numpy as np
+import pandas as pd
+import pickle
+from sklearn.metrics import roc_auc_score
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import StratifiedKFold
+import pathlib
+path = pathlib.Path.cwd()
+if path.stem == 'ATGC':
+    cwd = path
+else:
+    cwd = list(path.parents)[::-1][path.parts.index('ATGC')]
+    import sys
+    sys.path.append(str(cwd))
+
+D, tcga_maf, samples = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'data' / 'data.pkl', 'rb'))
+tcga_maf = tcga_maf.loc[:, ['Tumor_Sample_Barcode', 'genome_position']]
+
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'PCPG' if x == 'Paraganglioma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'PCPG' if x == 'Pheochromocytoma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Desmoid-Type Fibromatosis' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Leiomyosarcoma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Liposarcoma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Malignant Peripheral Nerve Sheath Tumor' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Myxofibrosarcoma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Synovial Sarcoma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'SARC' if x == 'Undifferentiated Pleomorphic Sarcoma' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'TGCT' if x == 'Testicular Non-Seminomatous Germ Cell Tumor' else x)
+samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'TGCT' if x == 'Testicular Seminoma' else x)
+
+labels_to_use = ['Muscle-Invasive Bladder Carcinoma', 'Infiltrating Ductal Breast Carcinoma',
+                 'Invasive Lobular Breast Carcinoma', 'Cervical Squamous Cell Carcinoma',
+                 'Colorectal Adenocarcinoma', 'Glioblastoma', 'Head and Neck Squamous Cell Carcinoma',
+                 'Clear Cell Renal Cell Carcinoma', 'Papillary Renal Cell Carcinoma',
+                 'Astrocytoma', 'Oligoastrocytoma', 'Oligodendroglioma', 'Hepatocellular Carcinoma',
+                 'Lung Adenocarcinoma', 'Lung Squamous Cell Carcinoma', 'Ovarian Serous Adenocarcinoma',
+                 'Adenocarcinoma, Pancreas', 'PCPG', 'Prostate Acinar Adenocarcinoma',
+                 'SARC', 'Cutaneous Melanoma', 'Gastric Adenocarcinoma',
+                 'TGCT', 'Thyroid Gland Follicular Carcinoma', 'Thyroid Gland Papillary Carcinoma',
+                 'Endometrial Endometrioid Adenocarcinoma', 'Endometrial Serous Adenocarcinoma']
+
+samples = samples.loc[samples['NCIt_label'].isin(labels_to_use)]
+
+# bin_size = 3095677412 // 3000
+bin_size = 3095677412 // 100000
+
+tcga_maf['bin'] = tcga_maf['genome_position'] // bin_size
+bin_df = tcga_maf.groupby(['Tumor_Sample_Barcode', "bin"]).size().unstack(fill_value=0)
+bin_df = pd.DataFrame.from_dict({'Tumor_Sample_Barcode': bin_df.index, 'bin_counts': bin_df.values.tolist()})
+samples = pd.merge(samples, bin_df, on='Tumor_Sample_Barcode', how='left')
+
+del D, tcga_maf
+
+A = samples['NCIt_label'].astype('category')
+classes = A.cat.categories.values
+y_label = np.arange(len(classes))[A.cat.codes]
+
+class_counts = dict(zip(*np.unique(y_label, return_counts=True)))
+y_weights = np.array([1 / class_counts[_] for _ in y_label])
+y_weights /= np.sum(y_weights)
+bin_counts = np.stack(samples['bin_counts'].values)
+bin_counts = np.log(bin_counts + 1)
+predictions = []
+test_idx = []
+reg = RandomForestClassifier(n_estimators=900, min_samples_split=10, random_state=0, n_jobs=20)
+for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_label, y_label):
+    print('fold')
+    test_idx.append(idx_test)
+    y_train, y_test = y_label[idx_train], y_label[idx_test]
+    ##for context counts
+    x_train, x_test = bin_counts[idx_train], bin_counts[idx_test]
+    reg.fit(x_train, y_train,
+            sample_weight=y_weights[idx_train] / np.sum(y_weights[idx_train])
+            )
+    predictions.append(reg.predict_proba(x_test))
+
+
+with open(cwd / 'figures' / 'tumor_classification' / 'ncit' / 'standard' / 'results' / 'bin_forest_100k.pkl', 'wb') as f:
+    pickle.dump([predictions, y_label, test_idx], f)
+
+##weighted accuracy
+print(np.sum((np.argmax(np.concatenate(predictions), axis=-1) == y_label[np.concatenate(test_idx)]) * y_weights[np.concatenate(test_idx)]))
+##unweighted accuracy
+print(sum(np.argmax(np.concatenate(predictions), axis=-1) == y_label[np.concatenate(test_idx)]) / len(y_label))
+print(roc_auc_score(y_label[np.concatenate(test_idx)], np.concatenate(predictions), multi_class='ovr'))
+
+##3000 bins
+# 0.3915529698522557
+# 0.4382716049382716
+# 0.8801494940211226
+
+##100k bins
+# 0.41544874009393556
+# 0.46139169472502806
+# 0.8873987693242598

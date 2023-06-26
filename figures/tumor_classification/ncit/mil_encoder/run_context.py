@@ -16,11 +16,12 @@ else:
     sys.path.append(str(cwd))
 
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[-3], True)
-tf.config.experimental.set_visible_devices(physical_devices[-3], 'GPU')
+tf.config.experimental.set_memory_growth(physical_devices[-2], True)
+tf.config.experimental.set_visible_devices(physical_devices[-2], 'GPU')
 
 
 D, tcga_maf, samples = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'data' / 'data.pkl', 'rb'))
+contexts = tcga_maf['contexts'].astype('category').cat.codes.values
 del tcga_maf
 samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'PCPG' if x == 'Paraganglioma' else x)
 samples['NCIt_label'] = samples['NCIt_label'].apply(lambda x: 'PCPG' if x == 'Pheochromocytoma' else x)
@@ -54,25 +55,11 @@ frame_emb_mat = np.concatenate([np.zeros(3)[np.newaxis, :], np.diag(np.ones(3))]
 D['cds_emb'] = frame_emb_mat[D['cds']]
 
 indexes = [np.where(D['sample_idx'] == idx) for idx in samples.index]
-
-five_p = np.array([D['seq_5p'][i] for i in indexes], dtype='object')
-three_p = np.array([D['seq_3p'][i] for i in indexes], dtype='object')
-ref = np.array([D['seq_ref'][i] for i in indexes], dtype='object')
-alt = np.array([D['seq_alt'][i] for i in indexes], dtype='object')
-strand = np.array([D['strand_emb'][i] for i in indexes], dtype='object')
+contexts = np.array([contexts[i] for i in indexes], dtype='object')
 dropout = .4
-index_loader = DatasetsUtils.Map.FromNumpytoIndices([j for i in indexes for j in i], dropout=.4)
-five_p_loader = DatasetsUtils.Map.FromNumpyandIndices(five_p, tf.int16)
-three_p_loader = DatasetsUtils.Map.FromNumpyandIndices(three_p, tf.int16)
-ref_loader = DatasetsUtils.Map.FromNumpyandIndices(ref, tf.int16)
-alt_loader = DatasetsUtils.Map.FromNumpyandIndices(alt, tf.int16)
-strand_loader = DatasetsUtils.Map.FromNumpyandIndices(strand, tf.float32)
-
-five_p_loader_eval = DatasetsUtils.Map.FromNumpy(five_p, tf.int16)
-three_p_loader_eval = DatasetsUtils.Map.FromNumpy(three_p, tf.int16)
-ref_loader_eval = DatasetsUtils.Map.FromNumpy(ref, tf.int16)
-alt_loader_eval = DatasetsUtils.Map.FromNumpy(alt, tf.int16)
-strand_loader_eval = DatasetsUtils.Map.FromNumpy(strand, tf.float32)
+index_loader = DatasetsUtils.Map.FromNumpytoIndices([j for i in indexes for j in i], dropout=dropout)
+context_loader = DatasetsUtils.Map.FromNumpyandIndices(contexts, tf.int16)
+context_loader_eval = DatasetsUtils.Map.FromNumpy(contexts, tf.int16)
 
 A = samples['NCIt_label'].astype('category')
 classes = A.cat.categories.values
@@ -84,16 +71,14 @@ class_counts = dict(zip(*np.unique(y_strat, return_counts=True)))
 y_weights = np.array([1 / class_counts[_] for _ in y_strat])
 y_weights /= np.sum(y_weights)
 
-
 y_label_loader = DatasetsUtils.Map.FromNumpy(y_label, tf.float32)
 y_weights_loader = DatasetsUtils.Map.FromNumpy(y_weights, tf.float32)
-
 
 predictions = []
 test_idx = []
 weights = []
 aucs = []
-callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_weighted_CE', min_delta=0.001, patience=100, mode='min', restore_best_weights=True)]
+callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_weighted_CE', min_delta=0.001, patience=50, mode='min', restore_best_weights=True)]
 for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_strat, y_strat):
     eval=100
     test_idx.append(idx_test)
@@ -110,11 +95,8 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
                                 )
 
         ds_train = ds_train.map(lambda x: ((
-                                                five_p_loader(x[0], x[1]),
-                                                three_p_loader(x[0], x[1]),
-                                                ref_loader(x[0], x[1]),
-                                                alt_loader(x[0], x[1]),
-                                                strand_loader(x[0], x[1]),
+                                                context_loader(x[0], x[1]),
+
                                                ),
                                               (
                                                   y_label_loader(x[0]),
@@ -125,11 +107,8 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
 
         ds_train.prefetch(1)
         ds_valid = tf.data.Dataset.from_tensor_slices(((
-                                               five_p_loader_eval(idx_valid),
-                                               three_p_loader_eval(idx_valid),
-                                               ref_loader_eval(idx_valid),
-                                               alt_loader_eval(idx_valid),
-                                               strand_loader_eval(idx_valid),
+                                               context_loader_eval(idx_valid),
+
                                            ),
                                             (
                                                 tf.gather(y_label, idx_valid),
@@ -142,8 +121,8 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
     losses = [Losses.CrossEntropy()]
     for i in range(3):
 
-        sequence_encoder = InstanceModels.VariantSequence(6, 4, 2, [16, 16, 16, 16], fusion_dimension=128)
-        mil = RaggedModels.MIL(instance_encoders=[sequence_encoder.model], sample_encoders=[], heads=y_label.shape[-1], output_dims=[y_label.shape[-1]], mil_hidden=[256], attention_layers=[], dropout=.5, instance_dropout=.5, regularization=0, input_dropout=dropout)
+        context_encoder = InstanceModels.Type(shape=(), dim=97)
+        mil = RaggedModels.MIL(instance_encoders=[context_encoder.model], sample_encoders=[], heads=1, output_dims=[y_label.shape[-1]], mil_hidden=[1024, 1024, 512], attention_layers=[], dropout=.5, input_dropout=dropout)
         mil.model.compile(loss=losses,
                           metrics=[Metrics.CrossEntropy(), Metrics.Accuracy()],
                           weighted_metrics=[Metrics.CrossEntropy()],
@@ -168,16 +147,10 @@ for idx_train, idx_test in StratifiedKFold(n_splits=5, random_state=0, shuffle=T
 with open(cwd / 'figures' / 'tumor_classification' / 'ncit' / 'mil_encoder' / 'results' / 'context_weights.pkl', 'wb') as f:
     pickle.dump([test_idx, weights], f)
 
-test_idx, weights = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'ncit' / 'mil_encoder' / 'results' / 'context_weights.pkl', 'rb'))
-
 for index, (idx_train, idx_test) in enumerate(StratifiedKFold(n_splits=5, random_state=0, shuffle=True).split(y_strat, y_strat)):
     mil.model.set_weights(weights[index])
     ds_test = tf.data.Dataset.from_tensor_slices(((
-                                               five_p_loader_eval(idx_test),
-                                               three_p_loader_eval(idx_test),
-                                               ref_loader_eval(idx_test),
-                                               alt_loader_eval(idx_test),
-                                               strand_loader_eval(idx_test),
+                                               context_loader_eval(idx_test),
                                            ),
                                             (
                                                 tf.gather(y_label, idx_test),
@@ -199,6 +172,6 @@ print(np.sum((np.argmax(predictions, axis=-1) == np.argmax(y_label[np.concatenat
 print(sum(np.argmax(predictions, axis=-1) == np.argmax(y_label[np.concatenate(test_idx)], axis=-1)) / len(y_label))
 print(roc_auc_score(np.argmax(y_label[np.concatenate(test_idx)], axis=-1), predictions, multi_class='ovr'))
 
-# 0.5069279424734305
-# 0.5222222222222223
-# 0.9396042490404073
+# 0.4734280533706985
+# 0.49236812570145905
+# 0.932709978446558
