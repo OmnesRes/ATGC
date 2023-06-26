@@ -22,9 +22,9 @@ print(np.sum((np.argmax(predictions, axis=-1) == y_label[np.concatenate(test_idx
 print(sum(np.argmax(predictions, axis=-1) == y_label[np.concatenate(test_idx)]) / len(y_label))
 print(roc_auc_score(y_label[np.concatenate(test_idx)], predictions, multi_class='ovr'))
 
-# 0.5484192390049147
-# 0.5911450058256541
-# 0.931317848034582
+# 0.5745879310108637
+# 0.6042792077110476
+# 0.9398707045383689
 
 recalls = recall_score(y_label[np.concatenate(test_idx)], np.argmax(predictions, axis=-1), average=None)
 precisions = precision_score(y_label[np.concatenate(test_idx)], np.argmax(predictions, axis=-1), average=None)
@@ -40,12 +40,35 @@ print(np.sum((np.argmax(predictions, axis=-1) == y_label[np.concatenate(test_idx
 print(sum(np.argmax(predictions, axis=-1) == y_label[np.concatenate(test_idx)]) / len(y_label))
 print(roc_auc_score(y_label[np.concatenate(test_idx)], predictions, multi_class='ovr'))
 
-# 0.5781230748368126
-# 0.5530134519648342
-# 0.9479852753450716
+# 0.541644289757681
+# 0.5190128164389366
+# 0.9412627246400488
 
 recalls = recall_score(y_label[np.concatenate(test_idx)], np.argmax(predictions, axis=-1), average=None)
 precisions = precision_score(y_label[np.concatenate(test_idx)], np.argmax(predictions, axis=-1), average=None)
 
 with open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'context_metrics.pkl', 'wb') as f:
     pickle.dump([precisions, recalls], f)
+
+predictions, y_label, test_idx = pickle.load(open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'sequence_predictions.pkl', 'rb'))
+y_label = np.argmax(y_label, axis=-1)
+##weighted accuracy
+print(np.sum((np.argmax(predictions, axis=-1) == y_label[np.concatenate(test_idx)]) * y_weights[np.concatenate(test_idx)]))
+##unweighted accuracy
+print(sum(np.argmax(predictions, axis=-1) == y_label[np.concatenate(test_idx)]) / len(y_label))
+print(roc_auc_score(y_label[np.concatenate(test_idx)], predictions, multi_class='ovr'))
+
+# 0.5981871944029693
+# 0.5800233026162482
+# 0.9515694558584493
+
+recalls = recall_score(y_label[np.concatenate(test_idx)], np.argmax(predictions, axis=-1), average=None)
+precisions = precision_score(y_label[np.concatenate(test_idx)], np.argmax(predictions, axis=-1), average=None)
+
+with open(cwd / 'figures' / 'tumor_classification' / 'project' / 'mil_encoder' / 'results' / 'sequence_metrics.pkl', 'wb') as f:
+    pickle.dump([precisions, recalls], f)
+
+
+
+
+
