@@ -96,8 +96,6 @@ class InstanceModels:
             fused = tf.concat(features, axis=2)
             fused = tf.keras.layers.Dense(units=self.fusion_dimension, activation=self.default_activation, kernel_regularizer=tf.keras.regularizers.l2(self.regularization))(fused)
             fused = tf.reduce_max(StrandWeight(trainable=True, n_features=fused.shape[2])(strand) * fused, axis=1)
-            # fused = tf.reduce_mean(StrandWeight(trainable=True, n_features=fused.shape[2])(strand) * fused, axis=1)
-            # fused = fused - tf.reduce_mean(fused, axis=-1, keepdims=True)
 
             if self.use_frame:
                 cds = tf.keras.layers.Input(shape=(3,), dtype=tf.float32)
@@ -145,8 +143,6 @@ class InstanceModels:
 
         def build(self, *args, **kwarg):
             input = tf.keras.layers.Input(self.shape, dtype=tf.int32)
-            # type_emb = Embed(embedding_dimension=self.dim, trainable=False)
-            # self.model = tf.keras.Model(inputs=[input], outputs=[type_emb(input)])
             self.model = tf.keras.Model(inputs=[input], outputs=[tf.one_hot(input, self.dim)])
 
     class Reads:
